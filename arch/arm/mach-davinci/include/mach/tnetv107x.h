@@ -16,6 +16,7 @@
 #define __ASM_ARCH_DAVINCI_TNETV107X_H
 
 #include <asm/sizes.h>
+#include <linux/if_ether.h>
 
 #define TNETV107X_DDR_BASE	0x80000000
 
@@ -59,12 +60,21 @@ struct tnetv107x_tsc_data {
 	int		calibration_data[TSC_CAL_SIZE];
 };
 
+struct tnetv107x_cpsw_info {
+	void		(*phy_control)(bool enabled);
+	int		rx_descs;
+	const char	*phy_id[2];
+	int		phy_if[2];
+	unsigned char	mac_addr[ETH_ALEN];
+};
+
 struct tnetv107x_device_info {
 	struct davinci_uart_config	*serial_config;
 	struct davinci_mmc_config	*mmc_config[2];  /* 2 controllers */
 	struct davinci_nand_pdata	*nand_config[4]; /* 4 chipsels */
 	struct tnetv107x_keypad_data	*keypad_config;
 	struct tnetv107x_tsc_data	*tsc_config;
+	struct tnetv107x_cpsw_info	*cpsw_config;
 };
 
 extern struct platform_device tnetv107x_wdt_device;

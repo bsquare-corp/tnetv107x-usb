@@ -18,6 +18,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/ratelimit.h>
@@ -35,6 +36,9 @@
 
 #define EVM_MMC_WP_GPIO		21
 #define EVM_MMC_CD_GPIO		24
+
+#define TNETV107X_VTP_BASE	0x0803d800
+#define TNETV107X_LATCH_BASE	0x48000000
 
 static int initialize_gpio(int gpio, char *desc)
 {
@@ -74,6 +78,58 @@ static int mmc_get_ro(int index)
 
 	return gpio_get_value(gpio) ? 1 : 0;
 }
+
+static int __init cpsw_phy_init(void)
+{
+	void __iomem *latch;
+
+	latch = ioremap(TNETV107X_LATCH_BASE, SZ_4K);
+	__raw_writel(0x00000000, latch); mdelay(1);
+	__raw_writel(0xffffffff, latch); mdelay(1);
+	iounmap(latch);
+	return 0;
+}
+arch_initcall(cpsw_phy_init);
+
+static void cpsw_phy_control(bool enabled)
+{
+	static struct clk	*rgmii_clk;
+	static void __iomem	*vtp_regs;
+
+	if (!rgmii_clk)
+		rgmii_clk = clk_get(NULL, "clk_ethss_rgmii");
+	if (!vtp_regs)
+		vtp_regs = ioremap(TNETV107X_VTP_BASE, SZ_4K);
+	if (WARN_ON(!rgmii_clk || !vtp_regs))
+		return;
+
+	if (enabled) {
+		/* First enable the rgmii module */
+		clk_enable(rgmii_clk);
+
+		/*
+		 * This piece of hardware is horribly mangled.  For one, port
+		 * 0 and port 1 configurations are strangely mixed up in the
+		 * register space, i.e., writing to port 0 registers affects
+		 * port 1 as well.   Second, for some other equally mysterious
+		 * reason, port 1 MUST be configured before port 0.
+		 */
+		__raw_writel(0x00000000, vtp_regs + 0x104); /* single mode  */
+		__raw_writel(0x000f0000, vtp_regs + 0x110); /* slew slowest */
+		__raw_writel(0x00000002, vtp_regs + 0x114); /* start	    */
+
+		__raw_writel(0x00000000, vtp_regs + 0x004); /* single mode  */
+		__raw_writel(0x000f0000, vtp_regs + 0x010); /* slew slowest */
+		__raw_writel(0x00000002, vtp_regs + 0x014); /* start	    */
+	} else {
+		clk_disable(rgmii_clk);
+	}
+}
+
+static struct tnetv107x_cpsw_info cpsw_config = {
+	.phy_control	= cpsw_phy_control,
+	.phy_id		= { "0:00", "0:01" },
+};
 
 static struct davinci_mmc_config mmc_config = {
 	.get_cd		= mmc_get_cd,
@@ -196,6 +252,7 @@ static struct tnetv107x_device_info evm_device_info __initconst = {
 	.nand_config[0]		= &nand_config,	/* chip select 0 */
 	.keypad_config		= &keypad_config,
 	.tsc_config		= &tsc_config,
+	.cpsw_config		= &cpsw_config,
 };
 
 static __init void tnetv107x_evm_board_init(void)
