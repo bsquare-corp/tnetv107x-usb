@@ -974,6 +974,17 @@ config TI_DAVINCI_CPDMA
 	  To compile this driver as a module, choose M here: the module
 	  will be called davinci_cpdma.  This is recommended.
 
+config TI_CPSW
+	tristate "TI CPSW Switch Support"
+	depends on ARM && ARCH_DAVINCI
+	select TI_DAVINCI_MDIO
+	select TI_DAVINCI_CPDMA
+	help
+	  This driver supports TI's CPSW Ethernet Switch.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called cpsw.  This is recommended.
+
 config DM9000
 	tristate "DM9000 support"
 	depends on ARM || BLACKFIN || MIPS
