@@ -34,6 +34,7 @@
 #include <mach/edma.h>
 #include <mach/mux.h>
 #include <mach/cp_intc.h>
+#include <mach/ti_ssp.h>
 #include <mach/tnetv107x.h>
 
 #define EVM_MMC_WP_GPIO		21
@@ -41,6 +42,9 @@
 
 #define TNETV107X_VTP_BASE	0x0803d800
 #define TNETV107X_LATCH_BASE	0x48000000
+
+#define TNETV107X_SSP_DEVICE_TPS6116X	1
+#define TNETV107X_SSP_DEVICE_TPS65241	2
 
 static int initialize_gpio(int gpio, char *desc)
 {
@@ -155,6 +159,12 @@ static const short uart1_pins[] __initdata = {
 	-1
 };
 
+static const short ssp_pins[] __initdata = {
+	TNETV107X_SSP0_0, TNETV107X_SSP0_1, TNETV107X_SSP0_2,
+	TNETV107X_SSP1_0, TNETV107X_SSP1_1, TNETV107X_SSP1_2,
+	TNETV107X_SSP1_3, -1
+};
+
 static struct mtd_partition nand_partitions[] = {
 	/* bootloader (U-Boot, etc) in first 12 sectors */
 	{
@@ -252,18 +262,54 @@ static struct matrix_keypad_platform_data keypad_config = {
 	.no_autorepeat	= 0,
 };
 
+static struct ti_ssp_device ssp_devices[] = {
+	{
+		.id		= TNETV107X_SSP_DEVICE_TPS6116X,
+		.name		= "tps6116x",
+		.port		= 0,
+		.min_clock	= 100*1000,
+		.max_clock	= 250*1000,
+		.iosel		=
+			SSP_PIN_SEL(2, SSP_DATA)	|
+			SSP_PIN_SEL(3, SSP_CLOCK)	|
+			SSP_INPUT_SEL(0),
+		.config		= 0,
+	},
+	{
+		.id		= TNETV107X_SSP_DEVICE_TPS65241,
+		.name		= "tps6524x",
+		.port		= 1,
+		.min_clock	= 100*1000,
+		.max_clock	= 5*1000*1000,
+		.iosel		=
+			SSP_PIN_SEL(0, SSP_CLOCK)	|
+			SSP_PIN_SEL(1, SSP_DATA)	|
+			SSP_PIN_SEL(2, SSP_CHIPSEL)	|
+			SSP_PIN_SEL(3, SSP_IN)		|
+			SSP_INPUT_SEL(3),
+		.config		= SSP_EARLY_DIN
+	},
+};
+
+static struct ti_ssp_data ssp_config = {
+	.num_devices	= ARRAY_SIZE(ssp_devices),
+	.devices	= ssp_devices,
+};
+
 static struct tnetv107x_device_info evm_device_info __initconst = {
 	.serial_config		= &serial_config,
 	.mmc_config[1]		= &mmc_config,	/* controller 1 */
 	.nand_config[0]		= &nand_config,	/* chip select 0 */
 	.keypad_config		= &keypad_config,
 	.cpsw_config		= &cpsw_config,
+	.ssp_config		= &ssp_config,
 };
 
 static __init void tnetv107x_evm_board_init(void)
 {
 	davinci_cfg_reg_list(sdio1_pins);
 	davinci_cfg_reg_list(uart1_pins);
+	davinci_cfg_reg_list(ssp_pins);
 
 	tnetv107x_devices_init(&evm_device_info);
 }
