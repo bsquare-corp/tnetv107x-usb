@@ -390,6 +390,17 @@ config BMP085
 	  To compile this driver as a module, choose M here: the
 	  module will be called bmp085.
 
+config TI_SSP
+	depends on ARCH_DAVINCI_TNETV107X
+	tristate "Sequencer Serial Port support"
+	default y
+	---help---
+	  Say Y here if you want support for the Sequencer Serial Port
+	  in a Texas Instruments TNETV107X SoC.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ti_ssp.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
