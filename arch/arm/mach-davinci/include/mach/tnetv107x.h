@@ -39,6 +39,7 @@
 #include <mach/mmc.h>
 #include <mach/nand.h>
 #include <mach/serial.h>
+#include <mach/ti_ssp.h>
 
 struct tnetv107x_cpsw_info {
 	void		(*phy_control)(bool enabled);
@@ -54,6 +55,7 @@ struct tnetv107x_device_info {
 	struct davinci_nand_pdata	*nand_config[4]; /* 4 chipsels */
 	struct matrix_keypad_platform_data *keypad_config;
 	struct tnetv107x_cpsw_info	*cpsw_config;
+	struct ti_ssp_data		*ssp_config;
 };
 
 extern struct platform_device tnetv107x_wdt_device;
