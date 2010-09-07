@@ -37,6 +37,7 @@
 #include <mach/mmc.h>
 #include <mach/nand.h>
 #include <mach/serial.h>
+#include <mach/ti_ssp.h>
 
 struct tnetv107x_keypad_data {
 	int		*keymap;
@@ -75,6 +76,7 @@ struct tnetv107x_device_info {
 	struct tnetv107x_keypad_data	*keypad_config;
 	struct tnetv107x_tsc_data	*tsc_config;
 	struct tnetv107x_cpsw_info	*cpsw_config;
+	struct ti_ssp_data		*ssp_config;
 };
 
 extern struct platform_device tnetv107x_wdt_device;

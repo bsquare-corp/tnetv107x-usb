@@ -39,6 +39,7 @@
 #define TNETV107X_SDIO1_BASE			0x08088800
 #define TNETV107X_MDIO_BASE			0x08088900
 #define TNETV107X_KEYPAD_BASE			0x08088a00
+#define TNETV107X_SSP_BASE			0x08088c00
 #define TNETV107X_ASYNC_EMIF_CNTRL_BASE		0x08200000
 #define TNETV107X_ASYNC_EMIF_DATA_CE0_BASE	0x30000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE1_BASE	0x40000000
@@ -415,6 +416,24 @@ struct platform_device cpsw_device = {
 	},
 };
 
+static struct resource ssp_resources [] = {
+	{
+		.start	= TNETV107X_SSP_BASE,
+		.end	= TNETV107X_SSP_BASE + 0x1ff,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.start	= IRQ_TNETV107X_SSP,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device ssp_device = {
+	.name		= "ti-ssp",
+	.num_resources	= ARRAY_SIZE(ssp_resources),
+	.resource	= ssp_resources,
+};
+
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
 	int i;
@@ -459,5 +478,10 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 		memcpy(&cpsw_data.mac_addr, info->cpsw_config->mac_addr,
 		       ETH_ALEN);
 		platform_device_register(&cpsw_device);
+	}
+
+	if (info->ssp_config) {
+		ssp_device.dev.platform_data = info->ssp_config;
+		platform_device_register(&ssp_device);
 	}
 }
