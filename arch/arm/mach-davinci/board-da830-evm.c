@@ -31,6 +31,7 @@
 #include <mach/usb.h>
 #include <mach/aemif.h>
 
+#define DA830_EVM_PHY_ID		""
 /*
  * USB1 VBUS is controlled by GPIO1[15], over-current is reported on GPIO2[4].
  */
@@ -556,6 +557,7 @@ static __init void da830_evm_init(void)
 	da830_evm_usb_init();
 
 	soc_info->emac_pdata->rmii_en = 1;
+	soc_info->emac_pdata->phy_id = DA830_EVM_PHY_ID;
 
 	ret = davinci_cfg_reg_list(da830_cpgmac_pins);
 	if (ret)

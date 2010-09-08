@@ -54,6 +54,7 @@ static inline int have_tvp7002(void)
 	return 0;
 }
 
+#define DM365_EVM_PHY_ID		"0:01"
 /*
  * A MAX-II CPLD is used for various board control functions.
  */
@@ -527,12 +528,15 @@ fail:
 		/* externally mux MMC1/ENET/AIC33 to imager */
 		mux |= BIT(6) | BIT(5) | BIT(3);
 	} else {
+		struct davinci_soc_info *soc_info = &davinci_soc_info;
+
 		/* we can use MMC1 ... */
 		dm365evm_mmc_configure();
 		davinci_setup_mmc(1, &dm365evm_mmc_config);
 
 		/* ... and ENET ... */
 		dm365evm_emac_configure();
+		soc_info->emac_pdata->phy_id = DM365_EVM_PHY_ID;
 		resets &= ~BIT(3);
 
 		/* ... and AIC33 */

@@ -42,6 +42,7 @@
 #include <mach/mux.h>
 #include <mach/usb.h>
 
+#define SFFSDR_PHY_ID		"0:01"
 static struct mtd_partition davinci_sffsdr_nandflash_partition[] = {
 	/* U-Boot Environment: Block 0
 	 * UBL:                Block 1
@@ -134,10 +135,13 @@ static void __init davinci_sffsdr_map_io(void)
 
 static __init void davinci_sffsdr_init(void)
 {
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
+
 	platform_add_devices(davinci_sffsdr_devices,
 			     ARRAY_SIZE(davinci_sffsdr_devices));
 	sffsdr_init_i2c();
 	davinci_serial_init(&uart_config);
+	soc_info->emac_pdata->phy_id = SFFSDR_PHY_ID;
 	davinci_setup_usb(0, 0); /* We support only peripheral mode. */
 
 	/* mux VLYNQ pins */

@@ -729,6 +729,7 @@ static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0),
 };
 
+#define DM646X_EVM_PHY_ID		"0:01"
 /*
  * The following EDMA channels/slots are not being used by drivers (for
  * example: Timer, GPIO, UART events etc) on dm646x, hence they are being
@@ -764,6 +765,8 @@ static struct edma_rsv_info dm646x_edma_rsv[] = {
 
 static __init void evm_init(void)
 {
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
+
 	evm_init_i2c();
 	davinci_serial_init(&uart_config);
 	dm646x_init_mcasp0(&dm646x_evm_snd_data[0]);
@@ -778,6 +781,8 @@ static __init void evm_init(void)
 
 	if (HAS_ATA)
 		davinci_init_ide();
+
+	soc_info->emac_pdata->phy_id = DM646X_EVM_PHY_ID;
 }
 
 #define DM646X_EVM_REF_FREQ		27000000

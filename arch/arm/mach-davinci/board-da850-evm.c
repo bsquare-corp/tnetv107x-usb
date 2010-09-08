@@ -38,6 +38,7 @@
 #include <mach/mux.h>
 #include <mach/aemif.h>
 
+#define DA850_EVM_PHY_ID		"0:00"
 #define DA850_LCD_PWR_PIN		GPIO_TO_PIN(2, 8)
 #define DA850_LCD_BL_PIN		GPIO_TO_PIN(2, 15)
 
@@ -674,6 +675,8 @@ static int __init da850_evm_config_emac(void)
 
 	/* Enable/Disable MII MDIO clock */
 	gpio_direction_output(DA850_MII_MDIO_CLKEN_PIN, rmii_en);
+
+	soc_info->emac_pdata->phy_id = DA850_EVM_PHY_ID;
 
 	ret = da8xx_register_emac();
 	if (ret)

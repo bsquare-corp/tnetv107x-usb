@@ -39,6 +39,7 @@
 #include <mach/mmc.h>
 #include <mach/usb.h>
 
+#define NEUROS_OSD2_PHY_ID		"0:01"
 #define LXT971_PHY_ID			0x001378e2
 #define LXT971_PHY_MASK			0xfffffff0
 
@@ -215,6 +216,7 @@ static struct davinci_mmc_config davinci_ntosd2_mmc_config = {
 static __init void davinci_ntosd2_init(void)
 {
 	struct clk *aemif_clk;
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
 	int	status;
 
 	aemif_clk = clk_get(NULL, "aemif");
@@ -247,6 +249,8 @@ static __init void davinci_ntosd2_init(void)
 
 	davinci_serial_init(&uart_config);
 	dm644x_init_asp(&dm644x_ntosd2_snd_data);
+
+	soc_info->emac_pdata->phy_id = NEUROS_OSD2_PHY_ID;
 
 	davinci_setup_usb(1000, 8);
 	/*
