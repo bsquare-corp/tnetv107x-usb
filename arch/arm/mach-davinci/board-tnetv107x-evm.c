@@ -395,6 +395,11 @@ static struct platform_device tps6524x_device = {
 	.dev.platform_data = &regulators,
 };
 
+static struct platform_device tps6116x_device = {
+	.name		= "tps6116x",
+	.id		= -1,
+};
+
 static __init void tnetv107x_evm_board_init(void)
 {
 	davinci_cfg_reg_list(sdio1_pins);
@@ -404,6 +409,7 @@ static __init void tnetv107x_evm_board_init(void)
 	tnetv107x_devices_init(&evm_device_info);
 
 	platform_device_register(&tps6524x_device);
+	platform_device_register(&tps6116x_device);
 }
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
