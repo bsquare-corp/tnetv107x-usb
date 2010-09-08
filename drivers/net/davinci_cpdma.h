@@ -56,6 +56,7 @@ struct cpdma_chan_stats {
 	u32			empty_dequeue;
 	u32			busy_dequeue;
 	u32			good_dequeue;
+	u32			requeue;
 	u32			teardown_dequeue;
 };
 

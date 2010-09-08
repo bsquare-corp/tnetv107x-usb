@@ -488,6 +488,7 @@ static void __cpdma_chan_submit(struct cpdma_chan *chan,
 	struct cpdma_desc __iomem	*prev = chan->tail;
 	struct cpdma_desc_pool		*pool = ctlr->pool;
 	dma_addr_t			desc_dma;
+	u32				mode;
 
 	desc_dma = desc_phys(pool, desc);
 
@@ -507,8 +508,10 @@ static void __cpdma_chan_submit(struct cpdma_chan *chan,
 	chan->stats.tail_enqueue++;
 
 	/* next check if EOQ has been triggered already */
-	if (desc_read(prev, hw_mode) & CPDMA_DESC_EOQ &&
-	    chan->state == CPDMA_STATE_ACTIVE) {
+	mode = desc_read(prev, hw_mode);
+	if (((mode & (CPDMA_DESC_EOQ | CPDMA_DESC_OWNER)) == CPDMA_DESC_EOQ) &&
+	    (chan->state == CPDMA_STATE_ACTIVE)) {
+		desc_write(prev, hw_mode, mode & ~CPDMA_DESC_EOQ);
 		chan_write(chan, hdp, desc_dma);
 		chan->stats.misqueued++;
 	}
@@ -617,6 +620,11 @@ static int __cpdma_chan_process(struct cpdma_chan *chan)
 	chan_write(chan, cp, desc_dma);
 	chan->count--;
 	chan->stats.good_dequeue++;
+
+	if (status & CPDMA_DESC_EOQ) {
+		chan->stats.requeue++;
+		chan_write(chan, hdp, desc_phys(pool, chan->head));
+	}
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 
