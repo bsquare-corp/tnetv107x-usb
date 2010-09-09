@@ -37,6 +37,16 @@
 #include <mach/nand.h>
 #include <mach/serial.h>
 
+struct tnetv107x_keypad_data {
+	int		*keymap;
+	const char	**keynames;
+	int		keymap_size;
+	int		rows;
+	int		cols;
+	u32		debounce;
+	u32		stable;
+};
+
 struct tnetv107x_device_info {
 	struct davinci_uart_config	*serial_config;
 	struct davinci_mmc_config	*mmc_config[2];  /* 2 controllers */
