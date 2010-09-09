@@ -21,6 +21,7 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/ratelimit.h>
+#include <linux/input.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <asm/mach/arch.h>
@@ -141,10 +142,51 @@ static struct davinci_uart_config serial_config __initconst = {
 	.enabled_uarts	= BIT(1),
 };
 
+static int keymap[] = {
+	/* row 0 */
+	KEY_NUMERIC_1, KEY_NUMERIC_2, KEY_NUMERIC_3, KEY_FN_F1, KEY_MENU,
+	/* row 1 */
+	KEY_NUMERIC_4, KEY_NUMERIC_5, KEY_NUMERIC_6, KEY_UP, KEY_FN_F2,
+	/* row 2 */
+	KEY_NUMERIC_7, KEY_NUMERIC_8, KEY_NUMERIC_9, KEY_LEFT, KEY_ENTER,
+	/* row 3 */
+	KEY_NUMERIC_STAR, KEY_NUMERIC_0, KEY_NUMERIC_POUND, KEY_DOWN, KEY_RIGHT,
+	/* row 4 */
+	KEY_FN_F3, KEY_FN_F4, KEY_MUTE, KEY_HOME, KEY_BACK,
+	/* row 5 */
+	KEY_VOLUMEDOWN, KEY_VOLUMEUP, KEY_F1, KEY_F2, KEY_F3,
+};
+
+static const char *keynames[] = {
+	/* row 0 */
+	"1", "2", "3", "S1 (FN_F1)", "MENU",
+	/* row 1 */
+	"4", "5", "6", "UP", "S2 (FN_F2)",
+	/* row 2 */
+	"7", "8", "9", "LEFT", "ENTER",
+	/* row 3 */
+	"*", "0", "#", "DOWN", "RIGHT",
+	/* row 4 */
+	"SPEAKER (FN_F3)", "HEADSET (FN_F4)", "MUTE", "HOME", "BACK",
+	/* row 5 */
+	"VOL_DOWN", "VOL_UP", "F1", "F2", "F3",
+};
+
+static struct tnetv107x_keypad_data keypad_config = {
+	.keynames	= keynames,
+	.keymap		= keymap,
+	.keymap_size	= ARRAY_SIZE(keymap),
+	.rows		= 6,
+	.cols		= 5,
+	.debounce	= 0x400,
+	.stable		= 0x3,
+};
+
 static struct tnetv107x_device_info evm_device_info __initconst = {
 	.serial_config		= &serial_config,
 	.mmc_config[1]		= &mmc_config,	/* controller 1 */
 	.nand_config[0]		= &nand_config,	/* chip select 0 */
+	.keypad_config		= &keypad_config,
 };
 
 static __init void tnetv107x_evm_board_init(void)
