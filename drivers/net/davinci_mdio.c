@@ -83,11 +83,12 @@ struct davinci_mdio_data {
 	struct device	*dev;
 	struct mii_bus	*bus;
 	bool		suspended;
+	unsigned long	access_time; /* jiffies */
 };
 
 static void __davinci_mdio_reset(struct davinci_mdio_data *data)
 {
-	u32 mdio_in, div;
+	u32 mdio_in, div, mdio_out_khz, access_time;
 
 	mdio_in = clk_get_rate(data->clk);
 	div = (mdio_in / data->pdata.bus_freq) - 1;
@@ -96,6 +97,25 @@ static void __davinci_mdio_reset(struct davinci_mdio_data *data)
 
 	/* set enable and clock divider */
 	__raw_writel(div | CONTROL_ENABLE, &data->regs->control);
+
+	/*
+	 * One mdio transaction consists of:
+	 *	32 bits of preamble
+	 *	32 bits of transferred data
+	 *	24 bits of bus yield (not needed unless shared?)
+	 */
+	mdio_out_khz = mdio_in / (1000 * (div + 1));
+	access_time  = (88 * 1000) / mdio_out_khz;
+
+	/*
+	 * In the worst case, we could be kicking off a user-access immediately
+	 * after the mdio bus scan state-machine triggered its own read.  If
+	 * so, our request could get deferred by one access cycle.  We
+	 * defensively allow for 4 access cycles.
+	 */
+	data->access_time = usecs_to_jiffies(access_time * 4);
+	if (!data->access_time)
+		data->access_time = 1;
 }
 
 static int davinci_mdio_reset(struct mii_bus *bus)
@@ -105,15 +125,8 @@ static int davinci_mdio_reset(struct mii_bus *bus)
 
 	__davinci_mdio_reset(data);
 
-	/*
-	 * wait for scan logic to settle:
-	 * the scan time consists of (a) a large fixed component, and (b) a
-	 * small component that varies with the mii bus frequency.  These
-	 * were estimated using measurements at 1.1 and 2.2 MHz on tnetv107x
-	 * silicon.  Since the effect of (b) was found to be largely
-	 * negligible, we keep things simple here.
-	 */
-	mdelay(1);
+	/* wait for scan logic to settle */
+	msleep(PHY_MAX_ADDR * data->access_time);
 
 	/* dump hardware version info */
 	ver = __raw_readl(&data->regs->version);
