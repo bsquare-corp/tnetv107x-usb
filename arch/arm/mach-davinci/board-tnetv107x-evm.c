@@ -182,11 +182,20 @@ static struct tnetv107x_keypad_data keypad_config = {
 	.stable		= 0x3,
 };
 
+static struct tnetv107x_tsc_data tsc_config = {
+	.xres	= 800,
+	.yres	= 480,
+	.calibration_data = {
+		217, 14019, -2540712, 8690, -140, -1651470, 65536,
+	},
+};
+
 static struct tnetv107x_device_info evm_device_info __initconst = {
 	.serial_config		= &serial_config,
 	.mmc_config[1]		= &mmc_config,	/* controller 1 */
 	.nand_config[0]		= &nand_config,	/* chip select 0 */
 	.keypad_config		= &keypad_config,
+	.tsc_config		= &tsc_config,
 };
 
 static __init void tnetv107x_evm_board_init(void)
