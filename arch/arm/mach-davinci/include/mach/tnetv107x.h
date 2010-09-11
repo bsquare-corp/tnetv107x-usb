@@ -47,11 +47,24 @@ struct tnetv107x_keypad_data {
 	u32		stable;
 };
 
+struct tnetv107x_tsc_data {
+	int		xres, yres;
+
+	/*
+	 * Calibration info:
+	 *   out_x = (C0 * in_x + C1 * in_y + C2) / C6
+	 *   out_y = (C3 * in_x + C4 * in_y + C5) / C6
+	 */
+#define TSC_CAL_SIZE	7
+	int		calibration_data[TSC_CAL_SIZE];
+};
+
 struct tnetv107x_device_info {
 	struct davinci_uart_config	*serial_config;
 	struct davinci_mmc_config	*mmc_config[2];  /* 2 controllers */
 	struct davinci_nand_pdata	*nand_config[4]; /* 4 chipsels */
 	struct tnetv107x_keypad_data	*keypad_config;
+	struct tnetv107x_tsc_data	*tsc_config;
 };
 
 extern struct platform_device tnetv107x_wdt_device;
