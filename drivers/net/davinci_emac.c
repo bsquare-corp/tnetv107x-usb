@@ -460,6 +460,8 @@ static void emac_dump_regs(struct emac_priv *priv)
 		emac_read(EMAC_RXMOFOVERRUNS));
 	dev_info(emac_dev, "EMAC: rx_dma_overruns:%d\n",
 		emac_read(EMAC_RXDMAOVERRUNS));
+
+	cpdma_ctlr_dump(priv->dma);
 }
 
 /**
@@ -1114,6 +1116,8 @@ static void emac_dev_tx_timeout(struct net_device *ndev)
 
 	if (netif_msg_tx_err(priv))
 		dev_err(emac_dev, "DaVinci EMAC: xmit timeout, restarting TX");
+
+	emac_dump_regs(priv);
 
 	ndev->stats.tx_errors++;
 	emac_int_disable(priv);
