@@ -4,20 +4,23 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
-
 #include <linux/usb/musb.h>
 
 #include <mach/common.h>
 #include <mach/irqs.h>
 #include <mach/cputype.h>
 #include <mach/usb.h>
+#include <mach/tnetv107x.h>
 
 #define DAVINCI_USB_OTG_BASE	0x01c64000
 
 #define DA8XX_USB0_BASE 	0x01e00000
 #define DA8XX_USB1_BASE 	0x01e25000
+#define TNETV107X_USB1_BASE	0x08120800
 
 #if defined(CONFIG_USB_MUSB_HDRC) || defined(CONFIG_USB_MUSB_HDRC_MODULE)
+
+#ifndef CONFIG_ARCH_DAVINCI_TNETV107X
 static struct musb_hdrc_eps_bits musb_eps[] = {
 	{ "ep1_tx", 8, },
 	{ "ep1_rx", 8, },
@@ -40,6 +43,54 @@ static struct musb_hdrc_config musb_config = {
 	.ram_bits	= 10,
 	.eps_bits	= musb_eps,
 };
+#else
+
+static struct musb_hdrc_eps_bits musb_eps[] = {
+	{	"ep1_tx", 10,	},
+	{	"ep1_rx", 10,	},
+	{	"ep2_tx", 9,	},
+	{	"ep2_rx", 9,	},
+	{	"ep3_tx", 3,	},
+	{	"ep3_rx", 3,	},
+	{	"ep4_tx", 3,	},
+	{	"ep4_rx", 3,	},
+	{	"ep5_tx", 3,	},
+	{	"ep5_rx", 3,	},
+	{	"ep6_tx", 3,	},
+	{	"ep6_rx", 3,	},
+	{	"ep7_tx", 3,	},
+	{	"ep7_rx", 3,	},
+	{	"ep8_tx", 2,	},
+	{	"ep8_rx", 2,	},
+	{	"ep9_tx", 2,	},
+	{	"ep9_rx", 2,	},
+	{	"ep10_tx", 2,	},
+	{	"ep10_rx", 2,	},
+	{	"ep11_tx", 2,	},
+	{	"ep11_rx", 2,	},
+	{	"ep12_tx", 2,	},
+	{	"ep12_rx", 2,	},
+	{	"ep13_tx", 2,	},
+	{	"ep13_rx", 2,	},
+	{	"ep14_tx", 2,	},
+	{	"ep14_rx", 2,	},
+	{	"ep15_tx", 2,	},
+	{	"ep15_rx", 2,	},
+};
+
+static struct musb_hdrc_config musb_config = {
+	.multipoint	= 1,
+	.dyn_fifo	= 1,
+	.soft_con	= 1,
+	.dma		= 0,
+	.num_eps	= 16,
+	.dma_channels	= 7,
+	.dma_req_chan	= (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
+	.ram_bits	= 12,
+	.eps_bits	= musb_eps,
+};
+
+#endif
 
 static struct musb_hdrc_platform_data usb_data = {
 #if defined(CONFIG_USB_MUSB_OTG)
@@ -126,6 +177,36 @@ int __init da8xx_register_usb20(unsigned mA, unsigned potpgt)
 }
 #endif	/* CONFIG_DAVINCI_DA8XX */
 
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+
+#define TNETV107X_USB_PHYCTL		0x08087118
+#define TNETV107X_USB_PHYRESET		0x0808a020
+
+static struct resource tnetv107x_usb20_resources[] = {
+	{
+		.start		= TNETV107X_USB1_BASE,
+		.end		= TNETV107X_USB1_BASE + SZ_2K - 1,
+		.flags		= IORESOURCE_MEM,
+	},
+	{
+		.start		= IRQ_TNETV107X_USB1,
+		.flags		= IORESOURCE_IRQ,
+	},
+
+};
+
+int __init tnetv107x_register_usb20(void)
+{
+	usb_data.clock  = "clk_usb1";
+	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
+	usb_dev.resource = tnetv107x_usb20_resources;
+	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
+
+	return platform_device_register(&usb_dev);
+}
+
+#endif	/* CONFIG_ARCH_DAVINCI_TNETV107X */
+
 #else
 
 void __init davinci_setup_usb(unsigned mA, unsigned potpgt_ms)
@@ -134,6 +215,13 @@ void __init davinci_setup_usb(unsigned mA, unsigned potpgt_ms)
 
 #ifdef CONFIG_ARCH_DAVINCI_DA8XX
 int __init da8xx_register_usb20(unsigned mA, unsigned potpgt)
+{
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+int __init tnetv107x_register_usb20()
 {
 	return 0;
 }
