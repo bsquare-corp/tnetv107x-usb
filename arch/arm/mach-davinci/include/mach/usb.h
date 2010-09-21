@@ -34,6 +34,24 @@
 #define CFGCHIP2_REFFREQ_24MHZ	(2 << 0)
 #define CFGCHIP2_REFFREQ_48MHZ	(3 << 0)
 
+/* TNETV107x PHY Control register bits */
+
+#define USB1_PHYPLLON		BIT(14)
+#define USB1_PHYPWRDN		BIT(13)
+#define USB1_OTGPWRDN		BIT(12)
+#define USB1_SENSEEN		BIT(11)
+#define USB1_VBUSDETEN		BIT(10)
+#define USB1_PHYCLKGD		BIT(9)
+#define USB1_VBUSSENS		BIT(8)
+
+#define USB0_PHYPLLON		BIT(6)
+#define USB0_PHYPWRDN		BIT(5)
+#define USB0_OTGPWRDN		BIT(4)
+#define USB0_SENSEEN		BIT(3)
+#define USB0_VBUSDETEN		BIT(2)
+#define USB0_PHYCLKGD		BIT(1)
+#define USB0_VBUSSENS		BIT(0)
+
 struct	da8xx_ohci_root_hub;
 
 typedef void (*da8xx_ocic_handler_t)(struct da8xx_ohci_root_hub *hub,
