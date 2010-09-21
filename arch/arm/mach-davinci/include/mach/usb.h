@@ -52,6 +52,14 @@
 #define USB0_PHYCLKGD		BIT(1)
 #define USB0_VBUSSENS		BIT(0)
 
+struct tnetv_musb_board_data {
+	int	controller;
+	int	is_on;
+	struct  musb *musb;
+	struct	regulator *vbus_regulator;
+	struct  work_struct vbus_work;
+};
+
 struct	da8xx_ohci_root_hub;
 
 typedef void (*da8xx_ocic_handler_t)(struct da8xx_ohci_root_hub *hub,

@@ -450,12 +450,6 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 	return -EIO;
 }
 
-
-static void tnetv107x_set_vbus(struct musb *musb, int is_on)
-{
-	WARN_ON(is_on && is_peripheral_active(musb));
-}
-
 int __init musb_platform_init(struct musb *musb, void *board_data)
 {
 	struct platform_device  *pdev;
@@ -494,7 +488,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	if (is_host_enabled(musb))
 		setup_timer(&otg_workaround, otg_timer, (unsigned long) musb);
 
-	musb->board_set_vbus = tnetv107x_set_vbus;
+	musb->board_set_vbus = pdata->set_vbus;
 
 	/* Reset the controller */
 	musb_writel(reg_base, TNETV107X_USB_CTRL_REG, TNETV107X_USB_SOFT_RESET_MASK);
@@ -502,6 +496,8 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	/* Start the on-chip PHY and its PLL. */
 	if (phy_ctrl(pdev->id, 1) < 0)
 		goto fail;
+
+	musb->board_set_vbus(musb, 1);
 
 	msleep(5);
 
