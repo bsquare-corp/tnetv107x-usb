@@ -305,7 +305,7 @@ static struct tnetv107x_device_info evm_device_info __initconst = {
 };
 
 static struct regulator_consumer_supply usb_consumers[] = {
-	REGULATOR_SUPPLY("vbus", "musb_hdrc.0"),
+	REGULATOR_SUPPLY("vbus", "musb_hdrc.1"),
 };
 
 static struct regulator_consumer_supply lcd_consumers[] = {
@@ -365,6 +365,9 @@ static struct regulator_init_data regulators[] = {
 			.name		= "USB",
 			.min_uV		= 5000000,
 			.max_uV		= 5000000,
+			.min_uA		= 200000,
+			.max_uA		= 1000000,
+			.boot_on	= 1,
 			.valid_ops_mask	= REGULATOR_CHANGE_CURRENT |
 					  REGULATOR_CHANGE_STATUS,
 		},
@@ -402,6 +405,8 @@ static __init void tnetv107x_evm_board_init(void)
 
 	platform_device_register(&tps6524x_device);
 	platform_device_register(&tps6116x_device);
+
+	tnetv107x_register_usb20();
 }
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
