@@ -12,7 +12,6 @@
 #include <mach/cputype.h>
 #include <mach/usb.h>
 #include <mach/tnetv107x.h>
-#include "../../../drivers/usb/musb/musb_core.h"
 
 #define DAVINCI_USB_OTG_BASE	0x01c64000
 
@@ -47,55 +46,12 @@ static struct musb_hdrc_config musb_config = {
 };
 #else
 
-static struct musb_hdrc_eps_bits musb_eps[] = {
-	{	"ep1_tx", 10,	},
-	{	"ep1_rx", 10,	},
-	{	"ep2_tx", 9,	},
-	{	"ep2_rx", 9,	},
-	{	"ep3_tx", 3,	},
-	{	"ep3_rx", 3,	},
-	{	"ep4_tx", 3,	},
-	{	"ep4_rx", 3,	},
-	{	"ep5_tx", 3,	},
-	{	"ep5_rx", 3,	},
-	{	"ep6_tx", 3,	},
-	{	"ep6_rx", 3,	},
-	{	"ep7_tx", 3,	},
-	{	"ep7_rx", 3,	},
-	{	"ep8_tx", 2,	},
-	{	"ep8_rx", 2,	},
-	{	"ep9_tx", 2,	},
-	{	"ep9_rx", 2,	},
-	{	"ep10_tx", 2,	},
-	{	"ep10_rx", 2,	},
-	{	"ep11_tx", 2,	},
-	{	"ep11_rx", 2,	},
-	{	"ep12_tx", 2,	},
-	{	"ep12_rx", 2,	},
-	{	"ep13_tx", 2,	},
-	{	"ep13_rx", 2,	},
-	{	"ep14_tx", 2,	},
-	{	"ep14_rx", 2,	},
-	{	"ep15_tx", 2,	},
-	{	"ep15_rx", 2,	},
-};
-
 static struct musb_hdrc_config musb_config = {
 	.multipoint	= 1,
 	.dyn_fifo	= 1,
-	.soft_con	= 1,
 	.dma		= 0,
 	.num_eps	= 16,
-	.dma_channels	= 7,
-	.dma_req_chan	= (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3),
 	.ram_bits	= 12,
-	.eps_bits	= musb_eps,
-};
-
-struct tnetv_musb_board_data tnetv107x_musb_board = {
-	.is_on = -1,
-	.musb = NULL,
-	.vbus_regulator = NULL,
 };
 
 #endif
@@ -111,7 +67,6 @@ static struct musb_hdrc_platform_data usb_data = {
 #endif
 	.clock		= "usb",
 	.config		= &musb_config,
-	.board_data	= &tnetv107x_musb_board,
 };
 
 static struct resource usb_resources[] = {
@@ -204,69 +159,11 @@ static struct resource tnetv107x_usb20_resources[] = {
 
 };
 
-void tnetvevm_deferred_drvvbus(struct work_struct *work)
-{
-	struct tnetv_musb_board_data *tnetv_bdata =
-	container_of(work, struct tnetv_musb_board_data, vbus_work);
-	struct musb *musb = tnetv_bdata->musb;
-	int is_on = tnetv_bdata->is_on;
-	int reg_status;
-
-	pr_debug("%s tnetv_bdata->is_on = %d\n",
-		 __func__, tnetv_bdata->is_on);
-
-	if (tnetv_bdata->vbus_regulator == NULL) {
-		/* get the regulator */
-		tnetv_bdata->vbus_regulator =
-			regulator_get(musb->controller, "vbus");
-
-		WARN(IS_ERR(tnetv_bdata->vbus_regulator)
-		     , "Unable to obtain voltage regulator for USB;");
-	}
-
-	reg_status = regulator_is_enabled(tnetv_bdata->vbus_regulator);
-
-	if (reg_status && is_on)
-		return;
-
-	if (!reg_status && !is_on)
-		return;
-
-	if (reg_status && !is_on)
-		regulator_disable(tnetv_bdata->vbus_regulator);
-
-	if (!reg_status && is_on)
-		regulator_enable(tnetv_bdata->vbus_regulator);
-
-}
-
-static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
-{
-	struct musb_hdrc_platform_data *usb_data =	\
-		musb->controller->platform_data;
-	struct tnetv_musb_board_data  *tnetv_bdata = usb_data->board_data;
-
-	WARN_ON(is_on && is_peripheral_active(musb));
-
-	if (is_on)
-		is_on = 1;
-
-	tnetv_bdata->is_on = is_on;
-
-	/* allow wq access to musb stuct */
-	if (tnetv_bdata->musb == NULL) {
-		tnetv_bdata->musb = musb;
-		INIT_WORK(&tnetv_bdata->vbus_work, tnetvevm_deferred_drvvbus);
-	}
-
-	schedule_work(&tnetv_bdata->vbus_work);
-}
-
 int __init tnetv107x_register_usb20(void)
 {
 	usb_data.clock  = "clk_usb1";
 	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
-	usb_data.set_vbus = tnetv107xevm_set_vbus;
+//	usb_data.set_vbus = tnetv107xevm_set_vbus;
 	usb_dev.resource = tnetv107x_usb20_resources;
 	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
 
