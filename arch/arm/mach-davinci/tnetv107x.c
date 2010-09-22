@@ -212,9 +212,9 @@ lpsc_clk(tdm0,		tdm_0_clk,		TDM0);
 lpsc_clk(tdm1,		tdm_1_clk,		TDM1);
 lpsc_clk(vlynq,		sys_vlynq_ref_clk,	VLYNQ);
 lpsc_clk(mcdma,		sys_half_clk,		MCDMA);
-lpsc_clk(usb0,		sys_half_clk,		USB0);
-lpsc_clk(usb1,		sys_half_clk,		USB1);
 lpsc_clk(usbss,		sys_half_clk,		USBSS);
+lpsc_clk(usb0,		clk_usbss,		USB0);
+lpsc_clk(usb1,		clk_usbss,		USB1);
 lpsc_clk(ethss_rgmii,	eth_250mhz_clk,		ETHSS_RGMII);
 lpsc_clk(imcop,		sys_dsp_clk,		IMCOP);
 lpsc_clk(spare,		sys_half_clk,		SPARE);
@@ -281,7 +281,9 @@ static struct clk_lookup clks[] = {
 	CLK(NULL,		"clk_tdm0",		&clk_tdm0),
 	CLK(NULL,		"clk_vlynq",		&clk_vlynq),
 	CLK(NULL,		"clk_mcdma",		&clk_mcdma),
+	CLK(NULL,		"clk_usbss",		&clk_usbss),
 	CLK(NULL,		"clk_usb0",		&clk_usb0),
+	CLK(NULL,		"clk_usb1",		&clk_usb1),
 	CLK(NULL,		"clk_tdm1",		&clk_tdm1),
 	CLK(NULL,		"clk_debugss",		&clk_debugss),
 	CLK(NULL,		"clk_ethss_rgmii",	&clk_ethss_rgmii),
@@ -289,8 +291,6 @@ static struct clk_lookup clks[] = {
 	CLK(NULL,		"clk_imcop",		&clk_imcop),
 	CLK(NULL,		"clk_spare",		&clk_spare),
 	CLK("davinci_mmc.1",	NULL,			&clk_sdio1),
-	CLK(NULL,		"clk_usb1",		&clk_usb1),
-	CLK(NULL,		"clk_usbss",		&clk_usbss),
 	CLK(NULL,		"clk_ddr2_vrst",	&clk_ddr2_vrst),
 	CLK(NULL,		"clk_ddr2_vctl_rst",	&clk_ddr2_vctl_rst),
 	CLK(NULL,		NULL,			NULL),
