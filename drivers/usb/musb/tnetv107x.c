@@ -40,6 +40,12 @@
 #include <mach/usb.h>
 #include "musb_core.h"
 
+struct tnetv_musb_vbus_data {
+	int	is_on;
+	struct	regulator *vbus_regulator;
+	struct  work_struct vbus_work;
+};
+
 /* USB 2.0 OTG module registers */
 #define TNETV107X_USB_REVISION_REG	0x00
 #define TNETV107X_USB_CTRL_REG	0x04
@@ -94,6 +100,46 @@
 #define TNETV107X_USB_PHY_RESET		0x0808a020
 
 static DEFINE_SPINLOCK(tnetv_lock);
+
+void tnetvevm_deferred_drvvbus(struct work_struct *work)
+{
+	struct tnetv_musb_vbus_data *tnetv_bdata =
+	container_of(work, struct tnetv_musb_vbus_data, vbus_work);
+	int is_on = tnetv_bdata->is_on;
+	int reg_status;
+
+	reg_status = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+
+	if (reg_status && is_on)
+		return;
+
+	if (!reg_status && !is_on)
+		return;
+
+	if (reg_status && !is_on)
+		regulator_disable(tnetv_bdata->vbus_regulator);
+
+	if (!reg_status && is_on)
+		regulator_enable(tnetv_bdata->vbus_regulator);
+}
+
+static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
+{
+	struct musb_hdrc_platform_data *usb_data =	\
+		musb->controller->platform_data;
+		struct tnetv_musb_vbus_data  *tnetv_bdata = usb_data->board_data;
+
+	WARN_ON(is_on && is_peripheral_active(musb));
+
+	if (is_on)
+		is_on = 1;
+
+	tnetv_bdata->is_on = is_on;
+
+	INIT_WORK(&tnetv_bdata->vbus_work, tnetvevm_deferred_drvvbus);
+
+	schedule_work(&tnetv_bdata->vbus_work);
+}
 
 static inline int phy_ctrl(int controller, int turn_on)
 {
@@ -454,6 +500,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 {
 	struct platform_device  *pdev;
 	struct musb_hdrc_platform_data *pdata;
+	struct tnetv_musb_vbus_data *pvbus_data;
 	struct clk *usb_ss;
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 rev;
@@ -488,7 +535,26 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	if (is_host_enabled(musb))
 		setup_timer(&otg_workaround, otg_timer, (unsigned long) musb);
 
-	musb->board_set_vbus = pdata->set_vbus;
+
+	if(pdata->set_vbus != NULL) {
+		musb->board_set_vbus = pdata->set_vbus;
+	} else {
+		/*default regulator based approach */
+		pvbus_data = kmalloc(sizeof(struct tnetv_musb_vbus_data), GFP_KERNEL);
+		if (!pvbus_data)
+			goto fail;
+
+		pdata->board_data = pvbus_data;
+		/* get the regulator */
+		pvbus_data->vbus_regulator =
+			regulator_get(musb->controller, "vbus");
+
+		if (WARN(IS_ERR(pvbus_data->vbus_regulator)
+			 , "Unable to obtain voltage regulator for USB;"))
+			goto fail;
+
+		musb->board_set_vbus = tnetv107xevm_set_vbus;
+	}
 
 	/* Reset the controller */
 	musb_writel(reg_base, TNETV107X_USB_CTRL_REG, TNETV107X_USB_SOFT_RESET_MASK);
@@ -516,9 +582,14 @@ fail:
 int musb_platform_exit(struct musb *musb)
 {
 	struct platform_device  *pdev = to_platform_device(musb->controller);
+	struct musb_hdrc_platform_data *pdata = musb->controller->platform_data;
+	struct tnetv_musb_vbus_data *pvbus_data = pdata->board_data;
 
 	if (is_host_enabled(musb))
 		del_timer_sync(&otg_workaround);
+
+	/* turn off vbus */
+	musb->board_set_vbus(musb, 0);
 
 	/* Delay to avoid problems with module reload... */
 	if (is_host_enabled(musb) && musb->xceiv->default_a) {
@@ -545,9 +616,17 @@ int musb_platform_exit(struct musb *musb)
 		DBG(1, "VBUS off timeout (devctl %02x)\n", devctl);
 	}
 
-done:
+	/* power down the phy */
 	phy_ctrl(pdev->id, 0);
 
+	if(pdata->set_vbus == NULL) {
+		flush_scheduled_work();
+		/* free the regulator */
+		regulator_put(pvbus_data->vbus_regulator);
+		kfree(pvbus_data);
+	}
+
+done:
 	clk_disable(musb->clock);
 
 	usb_nop_xceiv_unregister();
