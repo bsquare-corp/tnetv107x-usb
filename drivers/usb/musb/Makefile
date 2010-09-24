@@ -10,6 +10,7 @@ musb_hdrc-y := musb_core.o
 
 musb_hdrc-$(CONFIG_ARCH_DAVINCI_DMx)		+= davinci.o
 musb_hdrc-$(CONFIG_ARCH_DAVINCI_DA8XX)		+= da8xx.o
+musb_hdrc-$(CONFIG_ARCH_DAVINCI_TNETV107X)	+= tnetv107x.o
 musb_hdrc-$(CONFIG_USB_TUSB6010)		+= tusb6010.o
 musb_hdrc-$(CONFIG_ARCH_OMAP2430)		+= omap2430.o
 ifeq ($(CONFIG_USB_MUSB_AM35X),y)
