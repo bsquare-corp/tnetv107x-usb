@@ -41,8 +41,10 @@
 #include "musb_core.h"
 
 struct tnetv107x_musb_data {
-	struct  work_struct vbus_work;
+	struct	work_struct vbus_work;
 	struct	regulator *vbus_regulator;
+	struct	timer_list otg_workaround;
+	spinlock_t lock;
 	int	is_on;
 	int	vbus_state;
 };
@@ -116,20 +118,32 @@ void tnetvevm_deferred_drvvbus(struct work_struct *work)
 {
 	struct tnetv107x_musb_data *tnetv_bdata =
 	container_of(work, struct tnetv107x_musb_data, vbus_work);
-	int is_on = tnetv_bdata->is_on;
-	int reg_status;
+	int check, flags, is_on;
 
-	tnetv_bdata->vbus_state = regulator_is_enabled(tnetv_bdata->vbus_regulator);
-	reg_status = tnetv_bdata->vbus_state;
+	spin_lock_irqsave(&tnetv_bdata->lock, flags);
+	is_on = tnetv_bdata->is_on;
+	spin_unlock_irqrestore(&tnetv_bdata->lock, flags);
 
-	if (reg_status && !is_on) {
+	/* we can't rely on regulator_enabled to determine state, as this
+	   doesn't take into consideration ref counting, and the PMIC
+	   may have been disabled due to an overcurrent alarm */
+
+	if(!is_on && tnetv_bdata->vbus_state) {
 		regulator_disable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 0;
+
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if(check != 0)
+			WARNING("regulator disabled, but still on\n");
 	}
 
-	if (!reg_status && is_on) {
+	if (is_on && !tnetv_bdata->vbus_state) {
 		regulator_enable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 1;
+
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if(check != 1)
+			WARNING("regulator enabled, but still off\n");
 	}
 
 	return;
@@ -140,13 +154,17 @@ static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
 	struct musb_hdrc_platform_data *usb_data =	\
 		musb->controller->platform_data;
 		struct tnetv107x_musb_data  *tnetv_bdata = usb_data->board_data;
+	int flags;
 
 	WARN_ON(is_on && is_peripheral_active(musb));
 
 	if (is_on)
 		is_on = 1;
 
+	spin_lock_irqsave(&tnetv_bdata->lock, flags);
 	tnetv_bdata->is_on = is_on;
+	spin_unlock_irqrestore(&tnetv_bdata->lock, flags);
+
 	INIT_WORK(&tnetv_bdata->vbus_work, tnetvevm_deferred_drvvbus);
 
 	schedule_work(&tnetv_bdata->vbus_work);
@@ -198,7 +216,9 @@ static inline int phy_ctrl(int controller, int turn_on)
 		 * Start the on-chip PHY and its PLL.
 		 */
 
-		phyctrl_val |= PHYPLLON(controller) | SENSEEN(controller) | VBUSDETEN(controller);
+		phyctrl_val |= PHYPLLON(controller) | SENSEEN(controller)
+			| VBUSDETEN(controller);
+
 		phyctrl_val &= ~(PHYPWRDN(controller) | OTGPWRDN(controller));
 
 		__raw_writel(phyctrl_val, phyctl);
@@ -269,11 +289,11 @@ void musb_platform_disable(struct musb *musb)
 
 #define	POLL_SECONDS	2
 
-static struct timer_list otg_workaround;
-
 static void otg_timer(unsigned long _musb)
 {
 	struct musb		*musb = (void *)_musb;
+	struct musb_hdrc_platform_data *pdata = musb->controller->platform_data;
+	struct tnetv107x_musb_data *ptnetv_musb_data = pdata->board_data;
 	void __iomem		*mregs = musb->mregs;
 	u8			devctl;
 	unsigned long		flags;
@@ -307,7 +327,7 @@ static void otg_timer(unsigned long _musb)
 		 * VBUSERR got reported during enumeration" cases.
 		 */
 		if (devctl & MUSB_DEVCTL_VBUS) {
-			mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);
+			mod_timer(&(ptnetv_musb_data->otg_workaround), jiffies + POLL_SECONDS * HZ);
 			break;
 		}
 
@@ -334,7 +354,7 @@ static void otg_timer(unsigned long _musb)
 		musb_writeb(mregs, MUSB_DEVCTL, devctl | MUSB_DEVCTL_SESSION);
 		devctl = musb_readb(mregs, MUSB_DEVCTL);
 		if (devctl & MUSB_DEVCTL_BDEVICE)
-			mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);
+			mod_timer(&ptnetv_musb_data->otg_workaround, jiffies + POLL_SECONDS * HZ);
 		else
 			musb->xceiv->state = OTG_STATE_A_IDLE;
 		break;
@@ -347,6 +367,8 @@ static void otg_timer(unsigned long _musb)
 void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 {
 	static unsigned long last_timer;
+	struct musb_hdrc_platform_data *pdata = musb->controller->platform_data;
+	struct tnetv107x_musb_data *ptnetv_musb_data = pdata->board_data;
 
 	if (!is_otg_enabled(musb))
 		return;
@@ -358,12 +380,12 @@ void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 	if (musb->is_active || (musb->a_wait_bcon == 0 &&
 				musb->xceiv->state == OTG_STATE_A_WAIT_BCON)) {
 		DBG(4, "%s active, deleting timer\n", otg_state_string(musb));
-		del_timer(&otg_workaround);
+		del_timer(&(ptnetv_musb_data->otg_workaround));
 		last_timer = jiffies;
 		return;
 	}
 
-	if (time_after(last_timer, timeout) && timer_pending(&otg_workaround)) {
+	if (time_after(last_timer, timeout) && timer_pending(&ptnetv_musb_data->otg_workaround)) {
 		DBG(4, "Longer idle timer already pending, ignoring...\n");
 		return;
 	}
@@ -371,12 +393,14 @@ void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 
 	DBG(4, "%s inactive, starting idle timer for %u ms\n",
 	    otg_state_string(musb), jiffies_to_msecs(timeout - jiffies));
-	mod_timer(&otg_workaround, timeout);
+	mod_timer(&ptnetv_musb_data->otg_workaround, timeout);
 }
 
 static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 {
 	struct musb  *musb = hci;
+	struct musb_hdrc_platform_data *pdata = musb->controller->platform_data;
+	struct tnetv107x_musb_data *ptnetv_musb_data = pdata->board_data;
 	void __iomem *reg_base = musb->ctrl_base;
 	unsigned long flags;
 	irqreturn_t ret = IRQ_NONE;
@@ -443,7 +467,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 			 */
 			musb->int_usb &= ~MUSB_INTR_VBUSERROR;
 			musb->xceiv->state = OTG_STATE_A_WAIT_VFALL;
-			mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);
+			mod_timer(&ptnetv_musb_data->otg_workaround, jiffies + POLL_SECONDS * HZ);
 			WARNING("VBUS error workaround (delay coming)\n");
 		} else if (is_host_enabled(musb) && drvvbus) {
 			musb->is_active = 1;
@@ -451,7 +475,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 			musb->xceiv->default_a = 1;
 			musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
 			portstate(musb->port1_status |= USB_PORT_STAT_POWER);
-			del_timer(&otg_workaround);
+			del_timer(&ptnetv_musb_data->otg_workaround);
 		} else {
 			musb->is_active = 0;
 			MUSB_DEV_MODE(musb);
@@ -483,7 +507,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 
 	/* Poll for ID change */
 	if (is_otg_enabled(musb) && musb->xceiv->state == OTG_STATE_B_IDLE)
-		mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);
+		mod_timer(&ptnetv_musb_data->otg_workaround, jiffies + POLL_SECONDS * HZ);
 
 	spin_unlock_irqrestore(&musb->lock, flags);
 
@@ -504,6 +528,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	struct tnetv107x_musb_data *ptnetv_musb_data;
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 rev;
+	int ret = -ENODEV, power;
 
 	pdev = to_platform_device(musb->controller);
 	pdata = musb->controller->platform_data;
@@ -519,34 +544,46 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 
 	/* Returns zero if e.g. not clocked */
 	rev = musb_readl(reg_base, USB_REVISION_REG);
-	if (!rev) {
-		clk_disable(musb->clock);
-		usb_nop_xceiv_unregister();
-		goto fail;
+	if (!rev)
+		goto fail1;
+
+	ptnetv_musb_data = kmalloc(sizeof(struct tnetv107x_musb_data), GFP_KERNEL);
+	if (!ptnetv_musb_data) {
+		ret = -ENOMEM;
+		goto fail1;
 	}
 
-	if (is_host_enabled(musb))
-		setup_timer(&otg_workaround, otg_timer, (unsigned long) musb);
+	spin_lock_init(&ptnetv_musb_data->lock);
 
+	if (is_host_enabled(musb))
+		setup_timer(&ptnetv_musb_data->otg_workaround, otg_timer, (unsigned long) musb);
 
 	if(pdata->set_vbus != NULL) {
 		musb->board_set_vbus = pdata->set_vbus;
 	} else {
-		/*default regulator based approach */
-		ptnetv_musb_data = kmalloc(sizeof(struct tnetv107x_musb_data), GFP_KERNEL);
-		if (!ptnetv_musb_data)
-			goto fail;
-
 		pdata->board_data = ptnetv_musb_data;
 		/* get the regulator */
 		ptnetv_musb_data->vbus_regulator =
 			regulator_get(musb->controller, "vbus");
 
-		ptnetv_musb_data->is_on = -1;
-
 		if (WARN(IS_ERR(ptnetv_musb_data->vbus_regulator)
 			 , "Unable to obtain voltage regulator for USB;"))
-			goto fail;
+			goto fail2;
+
+		if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
+			/* the reg framework can leave regulators on during
+			   bootup, leading to unbalanced enable/disables */
+			regulator_enable(ptnetv_musb_data->vbus_regulator);
+			ptnetv_musb_data->vbus_state = 1;
+		} else {
+			ptnetv_musb_data->vbus_state = 0;
+		}
+
+		/* mA/2 -> uA */
+		power = (pdata->power * 2) * 1000;
+		if (IS_ERR(regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
+						       power, power)))
+			WARNING("Unable to set current limit %duA\n",power);
 
 		musb->board_set_vbus = tnetv107xevm_set_vbus;
 	}
@@ -556,7 +593,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 
 	/* Start the on-chip PHY and its PLL. */
 	if (phy_ctrl(pdev->id, 1) < 0)
-		goto fail;
+		goto fail2;
 
 	musb->board_set_vbus(musb, 1);
 
@@ -568,9 +605,14 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 
 	musb->isr = tnetv107x_interrupt;
 	return 0;
-fail:
+
+fail2:
+	kfree(ptnetv_musb_data);
+fail1:
 	clk_disable(musb->clock);
-	return -ENODEV;
+	usb_nop_xceiv_unregister();
+fail:
+	return ret;
 }
 
 int musb_platform_exit(struct musb *musb)
@@ -580,7 +622,7 @@ int musb_platform_exit(struct musb *musb)
 	struct tnetv107x_musb_data *ptnetv_musb_data = pdata->board_data;
 
 	if (is_host_enabled(musb))
-		del_timer_sync(&otg_workaround);
+		del_timer_sync(&ptnetv_musb_data->otg_workaround);
 
 	/* turn off vbus */
 	musb->board_set_vbus(musb, 0);
@@ -617,13 +659,11 @@ int musb_platform_exit(struct musb *musb)
 		flush_scheduled_work();
 		/* free the regulator */
 		regulator_put(ptnetv_musb_data->vbus_regulator);
-		kfree(ptnetv_musb_data);
 	}
 
 done:
+	kfree(ptnetv_musb_data);
 	clk_disable(musb->clock);
-
 	usb_nop_xceiv_unregister();
-
 	return 0;
 }

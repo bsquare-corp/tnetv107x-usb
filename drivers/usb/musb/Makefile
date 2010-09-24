@@ -17,6 +17,11 @@ ifeq ($(CONFIG_USB_MUSB_AM35X),y)
 	musb_hdrc-$(CONFIG_ARCH_OMAP3430)	+= am35x.o
 else
 	musb_hdrc-$(CONFIG_ARCH_OMAP3430)	+= omap2430.o
+
+
+
+ifeq ($(CONFIG_DEBUG_FS),y)
+	musb_hdrc-objs		+= musb_debugfs.o
 endif
 musb_hdrc-$(CONFIG_ARCH_OMAP4)			+= omap2430.o
 musb_hdrc-$(CONFIG_BF54x)			+= blackfin.o
