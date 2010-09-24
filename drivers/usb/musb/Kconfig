@@ -57,6 +57,9 @@ comment "OMAP 343x high speed USB support"
 comment "OMAP 44xx high speed USB support"
 	depends on USB_MUSB_HDRC && ARCH_OMAP4
 
+comment "TNETV107x USB support"
+	depends on USB_MUSB_HDRC && ARCH_DAVINCI_TNETV107X
+
 comment "Blackfin high speed USB Support"
 	depends on USB_MUSB_HDRC && ((BF54x && !BF544) || (BF52x && !BF522 && !BF523))
 
@@ -158,7 +161,7 @@ config USB_MUSB_HDRC_HCD
 config MUSB_PIO_ONLY
 	bool 'Disable DMA (always use PIO)'
 	depends on USB_MUSB_HDRC
-	default USB_TUSB6010 || ARCH_DAVINCI_DA8XX || USB_MUSB_AM35X
+	default USB_TUSB6010 || ARCH_DAVINCI_DA8XX || USB_MUSB_AM35X || ARCH_DAVINCI_TNETV107X
 	help
 	  All data is copied between memory and FIFO by the CPU.
 	  DMA controllers are ignored.
