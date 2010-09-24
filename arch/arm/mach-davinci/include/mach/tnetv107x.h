@@ -58,6 +58,8 @@ struct tnetv107x_device_info {
 	struct ti_ssp_data		*ssp_config;
 };
 
+int __init tnetv107x_register_usb20(void);
+
 extern struct platform_device tnetv107x_wdt_device;
 extern struct platform_device tnetv107x_serial_device;
 

@@ -410,6 +410,8 @@ static __init void tnetv107x_evm_board_init(void)
 
 	platform_device_register(&tps6524x_device);
 	platform_device_register(&tps6116x_device);
+
+	tnetv107x_register_usb20();
 }
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
