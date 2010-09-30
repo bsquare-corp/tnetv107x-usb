@@ -39,6 +39,8 @@
 #include <mach/cp_intc.h>
 #include <mach/tnetv107x.h>
 
+#define SSP_GPIO_START		128
+
 #define EVM_MMC_WP_GPIO		21
 #define EVM_MMC_CD_GPIO		24
 #define EVM_SPI_CS_GPIO		54
@@ -238,9 +240,18 @@ static struct ti_ssp_spi_data spi_master_data = {
 		  SSP_INPUT_SEL(3),
 };
 
+static struct ti_ssp_gpio_data ssp_gpio_data = {
+	.start		= SSP_GPIO_START,
+};
+
 static struct ti_ssp_data ssp_config = {
 	.out_clock	= 250 * 1000,
 	.dev_data	= {
+		[0] = {
+			.dev_name = "ti-ssp-gpio",
+			.pdata = &ssp_gpio_data,
+			.pdata_size = sizeof(ssp_gpio_data),
+		},
 		[1] = {
 			.dev_name = "ti-ssp-spi",
 			.pdata = &spi_master_data,
