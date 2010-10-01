@@ -548,6 +548,15 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 			 , "Unable to obtain voltage regulator for USB;"))
 			goto fail;
 
+		if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
+			/* the reg framework can leave regulators on during
+			   bootup, leading to unbalanced enable/disables */
+			regulator_enable(ptnetv_musb_data->vbus_regulator);
+		}
+
+		regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
+					    1000000, 1000000);
+
 		musb->board_set_vbus = tnetv107xevm_set_vbus;
 	}
 
