@@ -371,8 +371,8 @@ static struct regulator_init_data regulators[] = {
 			.name		= "USB",
 			.min_uV		= 5000000,
 			.max_uV		= 5000000,
-			.min_uA		= 200000,
-			.max_uA		= 1000000,
+			.min_uA		= 100000,
+			.max_uA		= 500000,
 			.valid_ops_mask	= REGULATOR_CHANGE_CURRENT |
 					  REGULATOR_CHANGE_STATUS,
 		},
