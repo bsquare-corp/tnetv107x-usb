@@ -217,7 +217,7 @@ static int tps6524x_ldo_ilimsel[] = {
 };
 
 static int tps6524x_usb_ilimsel[] = {
-	200000, 400000, 800000, 1000000
+	100000, 200000, 400000, 500000
 };
 
 static struct tps6524x_info tps6524x_info[] = {
