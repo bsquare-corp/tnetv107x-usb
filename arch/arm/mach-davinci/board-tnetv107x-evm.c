@@ -44,6 +44,7 @@
 #define EVM_MMC_WP_GPIO		21
 #define EVM_MMC_CD_GPIO		24
 #define EVM_SPI_CS_GPIO		54
+#define EVM_BACKLIGHT_GPIO	(SSP_GPIO_START + 2)
 
 static int initialize_gpio(int gpio, char *desc)
 {
@@ -353,6 +354,12 @@ static struct spi_board_info spi_info[] __initconst = {
 	},
 };
 
+static struct platform_device backlight_device = {
+	.name		= "tps6116x",
+	.id		= -1,
+	.dev.platform_data = (void *)EVM_BACKLIGHT_GPIO,
+};
+
 static __init void tnetv107x_evm_board_init(void)
 {
 	davinci_cfg_reg_list(sdio1_pins);
@@ -363,6 +370,13 @@ static __init void tnetv107x_evm_board_init(void)
 
 	spi_register_board_info(spi_info, ARRAY_SIZE(spi_info));
 }
+
+static int __init tnetv107x_evm_late_init(void)
+{
+	platform_device_register(&backlight_device);
+	return 0;
+}
+late_initcall(tnetv107x_evm_late_init);
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
 static int __init tnetv107x_evm_console_init(void)
