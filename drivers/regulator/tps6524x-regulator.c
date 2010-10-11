@@ -357,8 +357,8 @@ static const int ldo_ilimsel[] = {
 	400000, 1500000
 };
 
-static const int usb_ilimsel[] = {
-	200000, 400000, 800000, 1000000
+static int tps6524x_usb_ilimsel[] = {
+	100000, 200000, 400000, 500000
 };
 
 #define __MK_FIELD(_reg, _mask, _shift) \

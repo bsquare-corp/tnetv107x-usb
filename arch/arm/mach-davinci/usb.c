@@ -157,6 +157,7 @@ static struct resource tnetv107x_usb20_resources[] = {
 int __init tnetv107x_register_usb20(void)
 {
 	usb_data.clock  = "clk_usb1";
+	usb_data.power	= 500 / 2;
 	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
 	usb_dev.resource = tnetv107x_usb20_resources;
 	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
