@@ -18,11 +18,13 @@
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
+#include <linux/phy.h>
 
 #include <mach/common.h>
 #include <mach/irqs.h>
 #include <mach/edma.h>
 #include <mach/tnetv107x.h>
+#include <mach/cpsw.h>
 
 #include "clock.h"
 
@@ -30,10 +32,12 @@
 #define TNETV107X_TPCC_BASE			0x01c00000
 #define TNETV107X_TPTC0_BASE			0x01c10000
 #define TNETV107X_TPTC1_BASE			0x01c10400
+#define TNETV107X_CPSW_BASE			0x0803c000
 #define TNETV107X_WDOG_BASE			0x08086700
 #define TNETV107X_TSC_BASE			0x08088500
 #define TNETV107X_SDIO0_BASE			0x08088700
 #define TNETV107X_SDIO1_BASE			0x08088800
+#define TNETV107X_MDIO_BASE			0x08088900
 #define TNETV107X_KEYPAD_BASE			0x08088a00
 #define TNETV107X_SSP_BASE			0x08088c00
 #define TNETV107X_ASYNC_EMIF_CNTRL_BASE		0x08200000
@@ -343,6 +347,75 @@ static struct platform_device tsc_device = {
 	.resource	= tsc_resources,
 };
 
+static struct resource mdio_resources[] = {
+	{
+		.start	= TNETV107X_MDIO_BASE,
+		.end	= TNETV107X_MDIO_BASE + 0xff,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device mdio_device = {
+	.name		= "davinci_mdio",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(mdio_resources),
+	.resource	= mdio_resources,
+};
+
+static u64 cpsw_dma_mask = DMA_BIT_MASK(32);
+
+struct cpsw_slave_data cpsw_slaves[] = {
+	{
+		.slave_reg_ofs	= 0x14,
+		.sliver_reg_ofs	= 0x80,
+	},
+	{
+		.slave_reg_ofs	= 0x34,
+		.sliver_reg_ofs	= 0xc0,
+	},
+};
+
+struct cpsw_platform_data cpsw_data = {
+	.channels		= 8,
+	.cpdma_reg_ofs		= 0x100,
+	.slaves			= 2,
+	.slave_data		= cpsw_slaves,
+	.ale_reg_ofs		= 0x500,
+	.ale_entries		= 1024,
+	.host_port_reg_ofs	= 0x54,
+	.hw_stats_reg_ofs	= 0x400,
+	.rx_descs		= 512,
+	.mac_control		= BIT(18)	| /* IFCTLA	*/
+				  BIT(15)	| /* EXTEN	*/
+				  BIT(5)	| /* MIIEN	*/
+				  BIT(4)	| /* TXFLOWEN	*/
+				  BIT(3),	  /* RXFLOWEN	*/
+};
+
+static struct resource cpsw_resources[] = {
+	{
+		.start	= TNETV107X_CPSW_BASE,
+		.end	= TNETV107X_CPSW_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.start	= IRQ_TNETV107X_ETHSS,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device cpsw_device = {
+	.name			= "cpsw",
+	.id			= 0,
+	.num_resources		= ARRAY_SIZE(cpsw_resources),
+	.resource		= cpsw_resources,
+	.dev = {
+		.platform_data		= &cpsw_data,
+		.dma_mask		= &cpsw_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+
 static struct resource ssp_resources[] = {
 	{
 		.start	= TNETV107X_SSP_BASE,
@@ -380,6 +453,7 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 	}
 
 	platform_device_register(&edma_device);
+	platform_device_register(&mdio_device);
 	platform_device_register(&tnetv107x_wdt_device);
 	platform_device_register(&tsc_device);
 
@@ -404,5 +478,20 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 	if (info->ssp_config) {
 		ssp_device.dev.platform_data = info->ssp_config;
 		platform_device_register(&ssp_device);
+	}
+
+	if (info->cpsw_config) {
+		for (i = 0; i < 2; i++) {
+			cpsw_slaves[i].phy_id = info->cpsw_config->phy_id[i];
+			cpsw_slaves[i].phy_if = info->cpsw_config->phy_if[i] ?
+						info->cpsw_config->phy_if[i] :
+						PHY_INTERFACE_MODE_RGMII_ID;
+		}
+		if (info->cpsw_config->rx_descs)
+			cpsw_data.rx_descs = info->cpsw_config->rx_descs;
+		cpsw_data.phy_control = info->cpsw_config->phy_control;
+		memcpy(&cpsw_data.mac_addr, info->cpsw_config->mac_addr,
+		       ETH_ALEN);
+		platform_device_register(&cpsw_device);
 	}
 }
