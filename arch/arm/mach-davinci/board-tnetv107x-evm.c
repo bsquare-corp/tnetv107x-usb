@@ -18,6 +18,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/ratelimit.h>
@@ -32,6 +33,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c/at24.h>
 #include <linux/i2c-gpio.h>
+#include <linux/ctype.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -50,6 +52,9 @@
 #define EVM_I2C_SDA_GPIO	(SSP_GPIO_START + 0)
 #define EVM_I2C_SCL_GPIO	(SSP_GPIO_START + 1)
 #define EVM_BACKLIGHT_GPIO	(SSP_GPIO_START + 2)
+
+#define TNETV107X_VTP_BASE	0x0803d800
+#define TNETV107X_LATCH_BASE	0x48000000
 
 static int initialize_gpio(int gpio, char *desc)
 {
@@ -89,6 +94,58 @@ static int mmc_get_ro(int index)
 
 	return gpio_get_value(gpio) ? 1 : 0;
 }
+
+static int __init cpsw_phy_init(void)
+{
+	void __iomem *latch;
+
+	latch = ioremap(TNETV107X_LATCH_BASE, SZ_4K);
+	__raw_writel(0x00000000, latch); mdelay(1);
+	__raw_writel(0xffffffff, latch); mdelay(1);
+	iounmap(latch);
+	return 0;
+}
+arch_initcall(cpsw_phy_init);
+
+static void cpsw_phy_control(bool enabled)
+{
+	static struct clk	*rgmii_clk;
+	static void __iomem	*vtp_regs;
+
+	if (!rgmii_clk)
+		rgmii_clk = clk_get(NULL, "clk_ethss_rgmii");
+	if (!vtp_regs)
+		vtp_regs = ioremap(TNETV107X_VTP_BASE, SZ_4K);
+	if (WARN_ON(!rgmii_clk || !vtp_regs))
+		return;
+
+	if (enabled) {
+		/* First enable the rgmii module */
+		clk_enable(rgmii_clk);
+
+		/*
+		 * This piece of hardware is horribly mangled.  For one, port
+		 * 0 and port 1 configurations are strangely mixed up in the
+		 * register space, i.e., writing to port 0 registers affects
+		 * port 1 as well.   Second, for some other equally mysterious
+		 * reason, port 1 MUST be configured before port 0.
+		 */
+		__raw_writel(0x00000000, vtp_regs + 0x104); /* single mode  */
+		__raw_writel(0x000f0000, vtp_regs + 0x110); /* slew slowest */
+		__raw_writel(0x00000002, vtp_regs + 0x114); /* start	    */
+
+		__raw_writel(0x00000000, vtp_regs + 0x004); /* single mode  */
+		__raw_writel(0x000f0000, vtp_regs + 0x010); /* slew slowest */
+		__raw_writel(0x00000002, vtp_regs + 0x014); /* start	    */
+	} else {
+		clk_disable(rgmii_clk);
+	}
+}
+
+static struct tnetv107x_cpsw_info cpsw_config = {
+	.phy_control	= cpsw_phy_control,
+	.phy_id		= { "0:00", "0:01" },
+};
 
 static struct davinci_mmc_config mmc_config = {
 	.get_cd		= mmc_get_cd,
@@ -272,6 +329,7 @@ static struct tnetv107x_device_info evm_device_info __initconst = {
 	.nand_config[0]		= &nand_config,	/* chip select 0 */
 	.keypad_config		= &keypad_config,
 	.ssp_config		= &ssp_config,
+	.cpsw_config		= &cpsw_config,
 };
 
 static struct regulator_consumer_supply usb_consumers[] = {
@@ -388,11 +446,39 @@ static struct i2c_board_info i2c_info[] __initconst =  {
 	},
 };
 
+
+static char *mac_str;
+core_param(mac, mac_str, charp, 0000);
+
+static void __init setup_mac_addr(const char *str)
+{
+	int mac_addr[ETH_ALEN], ret, i;
+
+	ret = sscanf(str, "%x:%x:%x:%x:%x:%x",
+		     &mac_addr[0], &mac_addr[1], &mac_addr[2], 
+		     &mac_addr[3], &mac_addr[4], &mac_addr[5]);
+	if (ret != 6) {
+		pr_err("invalid mac address \"%s\"\n", str);
+		return;
+	}
+
+	for (i = 0; i < ETH_ALEN; i++)
+		cpsw_config.mac_addr[i] = mac_addr[i];
+
+	pr_info("mac address set to %02x:%02x:%02x:%02x:%02x:%02x\n",
+		cpsw_config.mac_addr[0], cpsw_config.mac_addr[1],
+		cpsw_config.mac_addr[2], cpsw_config.mac_addr[3],
+		cpsw_config.mac_addr[4], cpsw_config.mac_addr[5]);
+}
+
 static __init void tnetv107x_evm_board_init(void)
 {
 	davinci_cfg_reg_list(sdio1_pins);
 	davinci_cfg_reg_list(uart1_pins);
 	davinci_cfg_reg_list(ssp_pins);
+
+	if (mac_str)
+		setup_mac_addr(mac_str);
 
 	tnetv107x_devices_init(&evm_device_info);
 
