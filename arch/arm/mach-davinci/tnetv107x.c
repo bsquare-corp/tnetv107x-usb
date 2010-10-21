@@ -161,12 +161,13 @@ define_pll_div_clk(tdm, 1,		3);
 
 
 /* Level 3 - LPSC gated clocks */
-#define __lpsc_clk(cname, _parent, mod, flg)		\
-	static struct clk clk_##cname = {		\
-		.name		= #cname,		\
-		.parent		= &_parent,		\
-		.lpsc		= TNETV107X_LPSC_##mod,\
-		.flags		= flg,			\
+#define __lpsc_clk(cname, _parent, mod, flg)			\
+	static struct clk clk_##cname = {			\
+		.name		= #cname,			\
+		.parent		= &_parent,			\
+		.lpsc		= TNETV107X_LPSC_##mod,		\
+		.flags		= flg,				\
+		.set_rate	= davinci_set_leafclk_rate,	\
 	}
 
 #define lpsc_clk_enabled(cname, parent, mod)		\
