@@ -46,6 +46,7 @@
 
 #define SSP_GPIO_START		128
 
+#define EVM_LCD_DISP_GPIO	20
 #define EVM_MMC_WP_GPIO		21
 #define EVM_MMC_CD_GPIO		24
 #define EVM_SPI_CS_GPIO		54
@@ -156,6 +157,12 @@ static struct davinci_mmc_config mmc_config = {
 	.version	= MMC_CTLR_VERSION_1,
 };
 
+static struct tnetv107x_fb_data lcd_config = {
+	.virt_screens		= 3,
+	.panel_name		= "seiko_ra169z",
+	.panel_data.seiko_ra169z.gpio = EVM_LCD_DISP_GPIO,
+};
+
 static const short sdio1_pins[] __initdata = {
 	TNETV107X_SDIO1_CLK_1,		TNETV107X_SDIO1_CMD_1,
 	TNETV107X_SDIO1_DATA0_1,	TNETV107X_SDIO1_DATA1_1,
@@ -173,6 +180,20 @@ static const short ssp_pins[] __initdata = {
 	TNETV107X_SSP0_0, TNETV107X_SSP0_1, TNETV107X_SSP0_2,
 	TNETV107X_SSP1_0, TNETV107X_SSP1_1, TNETV107X_SSP1_2,
 	TNETV107X_SSP1_3, -1
+};
+
+static const short lcd_pins[] __initdata = {
+	TNETV107X_LCD_AC_NCS, TNETV107X_LCD_HSYNC_RNW,
+	TNETV107X_LCD_VSYNC_A0, TNETV107X_LCD_PCLK_E,
+	TNETV107X_LCD_PD00, TNETV107X_LCD_PD01, TNETV107X_LCD_PD02,
+	TNETV107X_LCD_PD03, TNETV107X_LCD_PD04, TNETV107X_LCD_PD05,
+	TNETV107X_LCD_PD06, TNETV107X_LCD_PD07, TNETV107X_LCD_PD08,
+	TNETV107X_LCD_PD09, TNETV107X_LCD_PD10, TNETV107X_LCD_PD11,
+	TNETV107X_LCD_PD12, TNETV107X_LCD_PD13, TNETV107X_LCD_PD14,
+	TNETV107X_LCD_PD15, TNETV107X_LCD_PD16_0, TNETV107X_LCD_PD17_0,
+	TNETV107X_LCD_PD18, TNETV107X_LCD_PD19_1, TNETV107X_LCD_PD20_0,
+	TNETV107X_LCD_PD21_0, TNETV107X_LCD_PD22_0,
+	TNETV107X_LCD_PD23_0, -1
 };
 
 static struct mtd_partition nand_partitions[] = {
@@ -330,6 +351,7 @@ static struct tnetv107x_device_info evm_device_info __initconst = {
 	.keypad_config		= &keypad_config,
 	.ssp_config		= &ssp_config,
 	.cpsw_config		= &cpsw_config,
+	.lcd_config		= &lcd_config,
 };
 
 static struct regulator_consumer_supply usb_consumers[] = {
@@ -476,6 +498,7 @@ static __init void tnetv107x_evm_board_init(void)
 	davinci_cfg_reg_list(sdio1_pins);
 	davinci_cfg_reg_list(uart1_pins);
 	davinci_cfg_reg_list(ssp_pins);
+	davinci_cfg_reg_list(lcd_pins);
 
 	if (mac_str)
 		setup_mac_addr(mac_str);
