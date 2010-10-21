@@ -2137,6 +2137,16 @@ config FB_DA8XX
 	  found on DA8xx/OMAP-L1xx SoCs.
 	  If unsure, say N.
 
+config FB_TNETV107X
+	tristate "TI TNETV107X Framebuffer support"
+	depends on FB && ARCH_DAVINCI_TNETV107X
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	---help---
+          This is the frame buffer device driver for the TI LCD controller
+	  found on TNETV107X SoCs.  If unsure, say N.
+
 config FB_VIRTUAL
 	tristate "Virtual Frame Buffer support (ONLY FOR TESTING!)"
 	depends on FB
