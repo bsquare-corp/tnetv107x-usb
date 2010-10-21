@@ -66,6 +66,7 @@ struct tnetv107x_device_info {
 	struct matrix_keypad_platform_data *keypad_config;
 	struct ti_ssp_data		*ssp_config;
 	struct tnetv107x_cpsw_info	*cpsw_config;
+	struct tnetv107x_fb_data	*lcd_config;
 };
 
 int __init tnetv107x_register_usb20(void);

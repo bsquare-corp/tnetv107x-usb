@@ -34,6 +34,7 @@
 #define TNETV107X_TPCC_BASE			0x01c00000
 #define TNETV107X_TPTC0_BASE			0x01c10000
 #define TNETV107X_TPTC1_BASE			0x01c10400
+#define TNETV107X_LCDC_BASE			0x08030000
 #define TNETV107X_CPSW_BASE			0x0803c000
 #define TNETV107X_WDOG_BASE			0x08086700
 #define TNETV107X_TSC_BASE			0x08088500
@@ -452,6 +453,30 @@ static struct platform_device pmu_device = {
 	.resource	= pmu_resources,
 };
 
+static struct resource lcd_resources[] = {
+	{
+		.name	= "lcdc_regs",
+		.start	= TNETV107X_LCDC_BASE,
+		.end	= TNETV107X_LCDC_BASE + 0xff,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "lcdc_irq",
+		.start	= IRQ_TNETV107X_LCD,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static u64 lcd_dmamask = DMA_BIT_MASK(32);
+
+static struct platform_device lcd_device = {
+	.name			= "tnetv107x-fb",
+	.dev.dma_mask		= &lcd_dmamask,
+	.dev.coherent_dma_mask	= DMA_BIT_MASK(32),
+	.num_resources		= ARRAY_SIZE(lcd_resources),
+	.resource		= lcd_resources,
+};
+
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
 	int i, error;
@@ -511,5 +536,10 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 		memcpy(&cpsw_data.mac_addr, info->cpsw_config->mac_addr,
 		       ETH_ALEN);
 		platform_device_register(&cpsw_device);
+	}
+
+	if (info->lcd_config) {
+		lcd_device.dev.platform_data = info->lcd_config;
+		platform_device_register(&lcd_device);
 	}
 }
