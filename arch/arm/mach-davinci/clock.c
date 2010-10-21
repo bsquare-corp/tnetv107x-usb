@@ -360,6 +360,23 @@ int davinci_set_sysclk_rate(struct clk *clk, unsigned long rate)
 }
 EXPORT_SYMBOL(davinci_set_sysclk_rate);
 
+int davinci_set_leafclk_rate(struct clk *clk, unsigned long rate)
+{
+	/* If this is the PLL base clock, wrong function to call */
+	if (clk->pll_data)
+		return -EINVAL;
+
+	/* There must be a parent... and it must have set_rate... */
+	if (WARN_ON(!clk->parent || !clk->parent->set_rate))
+		return -EINVAL;
+
+	/* And the parent clock must be unused... */
+	if (clk->parent->usecount)
+		return -EBUSY;
+	return clk_set_rate(clk->parent, rate);
+}
+EXPORT_SYMBOL(davinci_set_leafclk_rate);
+
 static unsigned long clk_leafclk_recalc(struct clk *clk)
 {
 	if (WARN_ON(!clk->parent))
