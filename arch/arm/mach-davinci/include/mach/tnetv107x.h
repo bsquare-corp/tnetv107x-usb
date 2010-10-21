@@ -49,6 +49,16 @@ struct tnetv107x_cpsw_info {
 	unsigned char	mac_addr[ETH_ALEN];
 };
 
+struct tnetv107x_fb_data {
+	int	virt_screens;
+	char	*panel_name;
+	union {
+		struct {
+			int	gpio;
+		} seiko_ra169z;
+	} panel_data;
+};
+
 struct tnetv107x_device_info {
 	struct davinci_uart_config	*serial_config;
 	struct davinci_mmc_config	*mmc_config[2];  /* 2 controllers */
