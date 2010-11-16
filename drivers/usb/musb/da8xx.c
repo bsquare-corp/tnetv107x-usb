@@ -30,10 +30,12 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 
+#include <mach/cppi41.h>
 #include <mach/da8xx.h>
 #include <mach/usb.h>
 
 #include "musb_core.h"
+#include "cppi41_dma.h"
 
 /*
  * DA8XX specific definitions
@@ -78,6 +80,44 @@
 
 #define CFGCHIP2	IO_ADDRESS(DA8XX_SYSCFG0_BASE + DA8XX_CFGCHIP2_REG)
 
+#define A_WAIT_BCON_TIMEOUT	1100		/* in ms */
+
+#define CFGCHIP2		DA8XX_SYSCFG_VIRT(DA8XX_CFGCHIP2_REG)
+
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+
+/*
+ * CPPI 4.1 resources used for USB OTG controller module:
+ *
+ * USB   DMA  DMA  QMgr  Tx     Src
+ *       Tx   Rx         QNum   Port
+ * ---------------------------------
+ * EP0   0    0    0     16,17  1
+ * ---------------------------------
+ * EP1   1    1    0     18,19  2
+ * ---------------------------------
+ * EP2   2    2    0     20,21  3
+ * ---------------------------------
+ * EP3   3    3    0     22,23  4
+ * ---------------------------------
+ */
+
+static const u16 tx_comp_q[] = { 24, 25 };
+static const u16 rx_comp_q[] = { 26, 27 };
+
+const struct usb_cppi41_info usb_cppi41_info = {
+	.dma_block	= 0,
+	.ep_dma_ch	= { 0, 1, 2, 3 },
+	.q_mgr		= 0,
+	.num_tx_comp_q	= 2,
+	.num_rx_comp_q	= 2,
+	.tx_comp_q	= tx_comp_q,
+	.rx_comp_q	= rx_comp_q
+};
+
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
+>>>>>>> integrate sergei's patches and make init work, hackily
+
 /*
  * REVISIT (PM): we should be able to keep the PHY in low power mode most
  * of the time (24 MHz oscillator and PLL off, etc.) by setting POWER.D0
@@ -119,6 +159,7 @@ static inline void phy_off(void)
 	/*
 	 * Power down the on-chip PHY.
 	 */
+	cfgchip2 = __raw_readl(CFGCHIP2);
 	cfgchip2 |= CFGCHIP2_PHYPWRDN | CFGCHIP2_OTGPWRDN;
 	__raw_writel(cfgchip2, CFGCHIP2);
 }
@@ -289,6 +330,7 @@ static irqreturn_t da8xx_interrupt(int irq, void *hci)
 	unsigned long		flags;
 	irqreturn_t		ret = IRQ_NONE;
 	u32			status;
+	u32 pend0 = 0;
 
 	spin_lock_irqsave(&musb->lock, flags);
 
@@ -308,6 +350,30 @@ static irqreturn_t da8xx_interrupt(int irq, void *hci)
 	musb->int_rx = (status & DA8XX_INTR_RX_MASK) >> DA8XX_INTR_RX_SHIFT;
 	musb->int_tx = (status & DA8XX_INTR_TX_MASK) >> DA8XX_INTR_TX_SHIFT;
 	musb->int_usb = (status & DA8XX_INTR_USB_MASK) >> DA8XX_INTR_USB_SHIFT;
+	/*
+	 * CPPI 4.1 interrupts share the same IRQ and the EOI register but
+	 * don't get reflected in the interrupt source/mask registers.
+	 */
+	if (is_cppi41_enabled()) {
+		/*
+		 * Check for the interrupts from Tx/Rx completion queues; they
+		 * are level-triggered and will stay asserted until the queues
+		 * are emptied.  We're using the queue pending register 0 as a
+		 * substitute for the interrupt status register and reading it
+		 * directly for speed.
+		 */
+		pend0 = musb_readl(reg_base, 0x4000 +
+				   QMGR_QUEUE_PENDING_REG(0));
+		if (pend0 & (0xf << 24)) {		/* queues 24 to 27 */
+			u32 tx = (pend0 >> 24) & 0x3;
+			u32 rx = (pend0 >> 26) & 0x3;
+
+			DBG(4, "CPPI 4.1 IRQ: Tx %x, Rx %x\n", tx, rx);
+			cppi41_completion(musb, rx, tx);
+			ret = IRQ_HANDLED;
+		}
+	}
+
 
 	/*
 	 * DRVVBUS IRQs are the only proxy we have (a very poor one!) for
@@ -414,7 +480,12 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 rev;
 
-	musb->mregs += DA8XX_MENTOR_CORE_OFFSET;
+	usb_nop_xceiv_register();
+	musb->xceiv = otg_get_transceiver();
+	if (!musb->xceiv)
+		return -ENODEV;
+
+	musb->mregs += USB_MENTOR_CORE_OFFSET;
 
 	clk_enable(musb->clock);
 
@@ -458,12 +529,36 @@ int musb_platform_exit(struct musb *musb)
 	if (is_host_enabled(musb))
 		del_timer_sync(&otg_workaround);
 
+	/* Delay to avoid problems with module reload... */
+	if (is_host_enabled(musb) && musb->xceiv->default_a) {
+		u8 devctl, warn = 0;
+		int delay;
+
+		/*
+		 * If there's no peripheral connected, VBUS can take a
+		 * long time to fall...
+		 */
+		for (delay = 30; delay > 0; delay--) {
+			devctl = musb_readb(musb->mregs, MUSB_DEVCTL);
+			if (!(devctl & MUSB_DEVCTL_VBUS))
+				goto done;
+			if ((devctl & MUSB_DEVCTL_VBUS) != warn) {
+				warn = devctl & MUSB_DEVCTL_VBUS;
+				DBG(1, "VBUS %d\n",
+					warn >> MUSB_DEVCTL_VBUS_SHIFT);
+			}
+			msleep(1000);
+		}
+
+		/* In OTG mode, another host might be connected... */
+		DBG(1, "VBUS off timeout (devctl %02x)\n", devctl);
+	}
+done:
 	phy_off();
 
-	otg_put_transceiver(musb->xceiv);
-	usb_nop_xceiv_unregister();
-
 	clk_disable(musb->clock);
+
+	usb_nop_xceiv_unregister();
 
 	return 0;
 }
