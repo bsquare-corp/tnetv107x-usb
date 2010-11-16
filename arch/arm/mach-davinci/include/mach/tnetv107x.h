@@ -67,6 +67,7 @@ extern void __init tnetv107x_init(void);
 extern void __init tnetv107x_devices_init(struct tnetv107x_device_info *);
 extern void __init tnetv107x_irq_init(void);
 
+int __init tnetv107x_cppi41_init(void);
 #endif
 
 #endif /* __ASM_ARCH_DAVINCI_TNETV107X_H */

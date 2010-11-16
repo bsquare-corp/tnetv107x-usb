@@ -25,6 +25,8 @@
 #include <mach/edma.h>
 #include <mach/tnetv107x.h>
 #include <mach/cpsw.h>
+#include <mach/cppi41.h>
+
 
 #include "clock.h"
 
@@ -45,6 +47,8 @@
 #define TNETV107X_ASYNC_EMIF_DATA_CE1_BASE	0x40000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE2_BASE	0x44000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE3_BASE	0x48000000
+#define TNETV107X_USB1_BASE			0x08120800
+
 
 /* TNETV107X specific EDMA3 information */
 #define EDMA_TNETV107X_NUM_DMACH	64
@@ -434,6 +438,102 @@ static struct platform_device ssp_device = {
 	.resource	= ssp_resources,
 };
 
+
+#ifdef	CONFIG_CPPI41
+static const struct cppi41_tx_ch tx_ch_info[] = {
+	[0] = {
+		.port_num	= 1,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 16 }, { 0, 17 } }
+	},
+	[1] = {
+		.port_num	= 2,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 18 }, { 0, 19 } }
+	},
+	[2] = {
+		.port_num	= 3,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 20 }, { 0, 21 } }
+	},
+	[3] = {
+		.port_num	= 4,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 22 }, { 0, 23 } }
+	}
+};
+
+/* DMA block configuration */
+const struct cppi41_dma_block cppi41_dma_block[1] = {
+	[0] = {
+		.global_ctrl_base	= 0xfee21000,
+		.ch_ctrl_stat_base	= 0xfee21800,
+		.sched_ctrl_base	= 0xfee22000,
+		.sched_table_base	= 0xfee22800,
+		.num_tx_ch		= 4,
+		.num_rx_ch		= 4,
+		.tx_ch_info		= tx_ch_info
+	}
+};
+EXPORT_SYMBOL(cppi41_dma_block);
+
+/* Queues 0 to 27 are pre-assigned, others are spare */
+static const u32 assigned_queues[] = { 0x0fffffff, 0 };
+
+/* Queue manager information */
+const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
+	[0] = {
+		.q_mgr_rgn_base 	= 0xfee24000,
+		.desc_mem_rgn_base	= 0xfee25000,
+		.q_mgmt_rgn_base	= 0xfee26000,
+		.q_stat_rgn_base	= 0xfee26400,
+
+		.num_queue		= 64,
+		.queue_types		= CPPI41_FREE_DESC_BUF_QUEUE |
+					  CPPI41_UNASSIGNED_QUEUE,
+		.base_fdbq_num		= 0,
+		.assigned		= assigned_queues
+	}
+};
+
+const u8 cppi41_num_queue_mgr = 1;
+const u8 cppi41_num_dma_block = 1;
+
+/* Fair DMA scheduling */
+static const u8 dma_sched_table[] = {
+	0x00, 0x80, 0x01, 0x81, 0x02, 0x82, 0x03, 0x83
+};
+
+int __init tnetv107x_cppi41_init(void)
+{
+	int ret;
+	pr_debug("initialising cppi41\n");
+	ret = cppi41_queue_mgr_init(0, 0, 0);
+	if (ret) {
+		pr_warning("%s: queue manager initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_ctrlr_init(0, 0, 5);
+	if (ret) {
+		pr_warning("%s: DMA controller initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_sched_init(0, dma_sched_table,
+				    sizeof(dma_sched_table));
+	if (ret)
+		printk("%s: DMA scheduler initialization failed: %d\n",
+		       __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(tnetv107x_cppi41_init);
+
+#endif	/* CONFIG_CPPI41 */
+
+
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
 	int i;
@@ -480,4 +580,7 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 		ssp_device.dev.platform_data = info->ssp_config;
 		platform_device_register(&ssp_device);
 	}
+//#ifdef CONFIG_CPPI41
+//	tnetv107x_cppi41_init();
+//#endif
 }

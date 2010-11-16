@@ -30,6 +30,7 @@
  *
  */
 
+#define DEBUG
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/io.h>
@@ -38,7 +39,14 @@
 
 #include <mach/tnetv107x.h>
 #include <mach/usb.h>
+
+#include <mach/cppi41.h>
+
 #include "musb_core.h"
+#include "cppi41_dma.h"
+
+
+
 
 struct tnetv107x_musb_data {
 	struct	work_struct vbus_work;
@@ -53,7 +61,7 @@ struct tnetv107x_musb_data {
 #define USB_REVISION_REG	0x00
 #define USB_CTRL_REG		0x04
 #define USB_STAT_REG		0x08
-#define USB_EMULATION_REG	 0x0c
+#define USB_EMULATION_REG	0x0c
 /* 0x10 reserved */
 #define USB_AUTOREQ_REG		0x14
 #define USB_SRP_FIX_TIME_REG	0x18
@@ -529,7 +537,6 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 rev;
 	int ret = -ENODEV, power;
-
 	pdev = to_platform_device(musb->controller);
 	pdata = musb->controller->platform_data;
 
@@ -541,7 +548,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	musb->mregs += MENTOR_CORE_OFFSET;
 
 	clk_enable(musb->clock);
-
+	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
 	/* Returns zero if e.g. not clocked */
 	rev = musb_readl(reg_base, USB_REVISION_REG);
 	if (!rev)
@@ -668,3 +675,41 @@ done:
 	usb_nop_xceiv_unregister();
 	return 0;
 }
+
+
+
+
+
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+
+/*
+ * CPPI 4.1 resources used for USB OTG controller module:
+ *
+ * USB   DMA  DMA  QMgr  Tx     Src
+ *       Tx   Rx         QNum   Port
+ * ---------------------------------
+ * EP0   0    0    0     16,17  1
+ * ---------------------------------
+ * EP1   1    1    0     18,19  2
+ * ---------------------------------
+ * EP2   2    2    0     20,21  3
+ * ---------------------------------
+ * EP3   3    3    0     22,23  4
+ * ---------------------------------
+ */
+
+static const u16 tx_comp_q[] = { 24, 25 };
+static const u16 rx_comp_q[] = { 26, 27 };
+
+const struct usb_cppi41_info usb_cppi41_info = {
+        .dma_block      = 0,
+        .ep_dma_ch      = { 0, 1, 2, 3 },
+        .q_mgr          = 0,
+        .num_tx_comp_q  = 2,
+        .num_rx_comp_q  = 2,
+        .tx_comp_q      = tx_comp_q,
+        .rx_comp_q      = rx_comp_q
+};
+
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
+
