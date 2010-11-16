@@ -850,6 +850,7 @@ static __init void da850_evm_init(void)
 	if (ret)
 		pr_warning("da850_evm_init: suspend registration failed: %d\n",
 				ret);
+	da8xx_cppi41_init();
 }
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE

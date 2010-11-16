@@ -30,6 +30,7 @@
  *
  */
 
+#define DEBUG
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/io.h>
@@ -38,7 +39,14 @@
 
 #include <mach/tnetv107x.h>
 #include <mach/usb.h>
+
+#include <mach/cppi41.h>
+
 #include "musb_core.h"
+#include "cppi41_dma.h"
+
+
+
 
 struct tnetv107x_musb_data {
 	struct	work_struct vbus_work;
@@ -53,7 +61,7 @@ struct tnetv107x_musb_data {
 #define USB_REVISION_REG	0x00
 #define USB_CTRL_REG		0x04
 #define USB_STAT_REG		0x08
-#define USB_EMULATION_REG	 0x0c
+#define USB_EMULATION_REG	0x0c
 /* 0x10 reserved */
 #define USB_AUTOREQ_REG		0x14
 #define USB_SRP_FIX_TIME_REG	0x18
@@ -253,6 +261,7 @@ void musb_platform_enable(struct musb *musb)
 {
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 epmask;
+	u32 val,tmp;
 
 	/* Workaround: setup IRQs through both register sets. */
 	epmask = (((musb->epmask & TX_EP_MASK) << USB_INTR_TX_SHIFT) |
@@ -260,6 +269,7 @@ void musb_platform_enable(struct musb *musb)
 
 	musb_writel(reg_base, EP_INTR_MASK_SET_REG, epmask);
 	musb_writel(reg_base, CORE_INTR_MASK_SET_REG, USB_INTR_USB_MASK);
+
 
 	/* Force the DRVVBUS IRQ so we can start polling for ID change. */
 	if (is_otg_enabled(musb))
@@ -418,6 +428,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 	epintr = musb_readl(reg_base, EP_INTR_SRC_MASKED_REG);
 
 	if (epintr) {
+		pr_debug("endpoint interrupt. %X\n", epintr);
 		musb_writel(reg_base, EP_INTR_SRC_CLEAR_REG, epintr);
 
 		musb->int_rx =
@@ -425,13 +436,14 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 		musb->int_tx =
 			(epintr & TX_INTR_MASK) >> USB_INTR_TX_SHIFT;
 	}
-
 	/* Get usb core interrupts */
 	usbintr = musb_readl(reg_base, CORE_INTR_SRC_MASKED_REG);
-	if (!usbintr && !epintr)
+	if (!usbintr && !epintr) {
+		pr_debug("unknown interrupt\n");
 		goto eoi;
-
+	}
 	if (usbintr) {
+		pr_debug("core usb interrupt. %X\n", usbintr);
 		musb_writel(reg_base, CORE_INTR_SRC_CLEAR_REG, usbintr);
 
 		musb->int_usb =
@@ -521,15 +533,38 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 	return -EIO;
 }
 
-int __init musb_platform_init(struct musb *musb, void *board_data)
+
+#ifdef USB_TI_CPPI41_DMA
+irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
 {
+        unsigned long flags;
+        struct musb *musb = data;
+	u32 pend2;
+
+        spin_lock_irqsave(&musb->lock, flags);
+        pend2 = musb_readl(cppi41_queue_mgr[0].q_mgr_rgn_base,
+                         QMGR_QUEUE_PENDING_REG(2));
+        pr_debug("cppi interrupt pending: %x @ %p\n", pend2, cppi41_queue_mgr[0].q_mgr_rgn_base + QMGR_QUEUE_PENDING_REG(2));
+        if (pend2 & (0xf << 28)) {              /* queues 92 - 95 */
+                u32 tx = (pend2 >> 30) & 0x3;
+                u32 rx = (pend2 >> 28) & 0x3;
+                DBG(4, "CPPI 4.1 IRQ: Tx %x, Rx %x\n", tx, rx);
+                cppi41_completion(musb, tx, rx);
+        }
+        spin_unlock_irqrestore(&musb->lock, flags);
+        return IRQ_HANDLED;
+}
+#endif /* USB_TI_CPPI41_DMA */
+
+
+
+int __init musb_platform_init(struct musb *musb, void *board_data) {
 	struct platform_device  *pdev;
 	struct musb_hdrc_platform_data *pdata;
 	struct tnetv107x_musb_data *ptnetv_musb_data;
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 rev;
 	int ret = -ENODEV, power;
-
 	pdev = to_platform_device(musb->controller);
 	pdata = musb->controller->platform_data;
 
@@ -537,11 +572,17 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	musb->xceiv = otg_get_transceiver();
 	if (!musb->xceiv)
 		goto fail;
-
 	musb->mregs += MENTOR_CORE_OFFSET;
-
+#ifdef USB_TI_CPPI41_DMA
+	if (request_irq( 35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb))
+	{
+		pr_debug("failed to get IRQ\n");
+		ret = -ENODEV;
+		goto fail;
+	}
+#endif /* USB_TI_CPPI41_DMA */
 	clk_enable(musb->clock);
-
+	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
 	/* Returns zero if e.g. not clocked */
 	rev = musb_readl(reg_base, USB_REVISION_REG);
 	if (!rev)
@@ -667,3 +708,41 @@ done:
 	usb_nop_xceiv_unregister();
 	return 0;
 }
+
+
+
+
+
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+
+/*
+ * CPPI 4.1 resources used for USB OTG controller module:
+ *
+ * USB   DMA  DMA  QMgr  Tx     Src
+ *       Tx   Rx         QNum   Port
+ * ---------------------------------
+ * EP0   0    0    0     16,17  1
+ * ---------------------------------
+ * EP1   1    1    0     18,19  2
+ * ---------------------------------
+ * EP2   2    2    0     20,21  3
+ * ---------------------------------
+ * EP3   3    3    0     22,23  4
+ * ---------------------------------
+ */
+
+static const u16 tx_comp_q[] = { 92, 93 };
+static const u16 rx_comp_q[] = { 94, 95 };
+
+const struct usb_cppi41_info usb_cppi41_info = {
+        .dma_block      = 0,
+        .ep_dma_ch      = {15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 },
+        .q_mgr          = 0,
+        .num_tx_comp_q  = 2,
+        .num_rx_comp_q  = 2,
+        .tx_comp_q      = tx_comp_q,
+        .rx_comp_q      = rx_comp_q
+};
+
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
+

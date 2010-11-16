@@ -55,6 +55,12 @@ config ARCH_DAVINCI_TNETV107X
 	select CP_INTC
 	bool "TNETV107X based system"
 
+config CPPI41
+	bool "CPPI 4.1 support"
+	depends on ARCH_DAVINCI_DA8XX || ARCH_DAVINCI_TNETV107X
+	help
+	  Configure this option to include the CPPI 4.1 support.
+
 comment "DaVinci Board Type"
 
 config MACH_DAVINCI_EVM
