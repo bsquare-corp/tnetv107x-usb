@@ -6,6 +6,9 @@
  * The TUSB6020, using VLYNQ, has CPPI that looks much like DaVinci.
  */
 
+
+#define DEBUG
+
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/usb.h>
