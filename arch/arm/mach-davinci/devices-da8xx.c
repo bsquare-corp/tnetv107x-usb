@@ -18,12 +18,14 @@
 #include <mach/cputype.h>
 #include <mach/common.h>
 #include <mach/time.h>
+#include <mach/cppi41.h>
 #include <mach/da8xx.h>
 #include <mach/cpuidle.h>
 
 #include "clock.h"
 
 #define DA8XX_TPCC_BASE			0x01c00000
+#define DA8XX_USB0_BASE		        0x01e00000
 #define DA850_MMCSD1_BASE		0x01e1b000
 #define DA850_TPCC1_BASE		0x01e30000
 #define DA8XX_TPTC0_BASE		0x01c08000
@@ -718,3 +720,98 @@ int __init da8xx_register_cpuidle(void)
 
 	return platform_device_register(&da8xx_cpuidle_device);
 }
+
+#ifdef	CONFIG_CPPI41
+#define DA8XX_USB0_BASE 0x01c64000
+//#define DA8XX_USB0_BASE 0x01c00000
+static const struct cppi41_tx_ch tx_ch_info[] = {
+	[0] = {
+		.port_num	= 1,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 16 }, { 0, 17 } }
+	},
+	[1] = {
+		.port_num	= 2,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 18 }, { 0, 19 } }
+	},
+	[2] = {
+		.port_num	= 3,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 20 }, { 0, 21 } }
+	},
+	[3] = {
+		.port_num	= 4,
+		.num_tx_queue	= 2,
+		.tx_queue	= { { 0, 22 }, { 0, 23 } }
+	}
+};
+
+/* DMA block configuration */
+const struct cppi41_dma_block cppi41_dma_block[1] = {
+	[0] = {
+		.global_ctrl_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x1000),
+		.ch_ctrl_stat_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x1800),
+		.sched_ctrl_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x2000),
+		.sched_table_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x2800),
+		.num_tx_ch		= 4,
+		.num_rx_ch		= 4,
+		.tx_ch_info		= tx_ch_info
+	}
+};
+EXPORT_SYMBOL(cppi41_dma_block);
+
+/* Queues 0 to 27 are pre-assigned, others are spare */
+static const u32 assigned_queues[] = { 0x0fffffff, 0 };
+
+/* Queue manager information */
+const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
+	[0] = {
+		.q_mgr_rgn_base 	= IO_ADDRESS(DA8XX_USB0_BASE + 0x4000),
+		.desc_mem_rgn_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x5000),
+		.q_mgmt_rgn_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x6000),
+		.q_stat_rgn_base	= IO_ADDRESS(DA8XX_USB0_BASE + 0x6800),
+
+		.num_queue		= 64,
+		.queue_types		= CPPI41_FREE_DESC_BUF_QUEUE |
+					  CPPI41_UNASSIGNED_QUEUE,
+		.base_fdbq_num		= 0,
+		.assigned		= assigned_queues
+	}
+};
+
+const u8 cppi41_num_queue_mgr = 1;
+const u8 cppi41_num_dma_block = 1;
+
+/* Fair DMA scheduling */
+static const u8 dma_sched_table[] = {
+	0x00, 0x80, 0x01, 0x81, 0x02, 0x82, 0x03, 0x83
+};
+
+int __init da8xx_cppi41_init(void)
+{
+	int ret;
+
+	ret = cppi41_queue_mgr_init(0, 0, 0);
+	if (ret) {
+		pr_warning("%s: queue manager initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_ctrlr_init(0, 0, 5);
+	if (ret) {
+		pr_warning("%s: DMA controller initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_sched_init(0, dma_sched_table,
+				    sizeof(dma_sched_table));
+	if (ret)
+		printk("%s: DMA scheduler initialization failed: %d\n",
+		       __func__, ret);
+	return ret;
+}
+
+#endif	/* CONFIG_CPPI41 */
