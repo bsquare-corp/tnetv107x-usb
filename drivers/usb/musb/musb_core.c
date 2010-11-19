@@ -2472,6 +2472,7 @@ static struct platform_driver musb_driver = {
 		.owner		= THIS_MODULE,
 		.pm		= MUSB_DEV_PM_OPS,
 	},
+	.probe		= musb_probe,
 	.remove		= __exit_p(musb_remove),
 	.shutdown	= musb_shutdown,
 };
@@ -2507,7 +2508,7 @@ static int __init musb_init(void)
 #endif
 		", debug=%d\n",
 		musb_driver_name, musb_debug);
-	return platform_driver_probe(&musb_driver, musb_probe);
+	return platform_driver_register(&musb_driver);
 }
 
 /* make us init after usbcore and i2c (transceivers, regulators, etc)
