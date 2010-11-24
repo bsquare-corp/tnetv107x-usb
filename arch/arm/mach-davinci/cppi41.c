@@ -60,6 +60,12 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 {
 	void __iomem *q_mgr_regs;
 	void *ptr;
+#define TMP(A) printk(#A " = %p \n", A)
+
+        TMP(cppi41_queue_mgr[0].q_mgr_rgn_base);
+        TMP(cppi41_queue_mgr[0].desc_mem_rgn_base);
+        TMP(cppi41_queue_mgr[0].q_mgmt_rgn_base);
+        TMP(cppi41_queue_mgr[0].q_stat_rgn_base);
 
 	if (q_mgr >= cppi41_num_queue_mgr)
 		return -EINVAL;
@@ -128,6 +134,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		       "queue.\n", __func__);
 		return error;
 	}
+	q_num = 30; // FIXME: hack, probably doesn't even work - SP
 	pr_debug("Teardown descriptor queue %d in queue manager 0 allocated\n",
 		 q_num);
 
@@ -140,10 +147,10 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		     (q_num << DMA_TD_DESC_QNUM_SHIFT),
 		     dma_block->global_ctrl_base +
 		     DMA_TEARDOWN_FREE_DESC_CTRL_REG);
-	pr_debug("Teardown free descriptor control @ %p, value: %x\n",
+	pr_debug("Teardown free descriptor control @ %p, value: %x (q_mgr=%d, q_num=%d)\n",
 		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
 		 __raw_readl(dma_block->global_ctrl_base +
-			     DMA_TEARDOWN_FREE_DESC_CTRL_REG));
+			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
 
 	dma_teardown[dma_num].rgn_size = num_desc *
 					 sizeof(struct cppi41_teardown_desc);
@@ -219,7 +226,6 @@ int __init cppi41_dma_sched_init(u8 dma_num, const u8 *sched_tbl, u16 tbl_size)
 			if (k < tbl_size)
 				val |= sched_tbl[k] << 24;
 		}
-
 		__raw_writel(val, dma_block->sched_table_base +
 			     DMA_SCHED_TABLE_WORD_REG(i));
 		pr_debug("DMA scheduler table @ %p, value written: %x\n",
@@ -265,7 +271,17 @@ int cppi41_mem_rgn_alloc(u8 q_mgr, dma_addr_t rgn_addr, u8 size_order,
 	next_desc_index[q_mgr] = index + num_desc;
 
 	desc_mem_regs = cppi41_queue_mgr[q_mgr].desc_mem_rgn_base;
-	pr_debug("ioremap(0x08121000, 4): %p, IO_ADDRESS(0x08121000): %p\n", ioremap(0x08121000, 4), IO_ADDRESS(0x08121000));
+	#define TMP(A, B) pr_debug(#A "  ioremap(" #B ", 4): %p, IO_ADDRESS(" #B "): %p\n", ioremap(B, 4), IO_ADDRESS(B));
+	TMP(.dmaBlock[0].globalCtrlBase, 0x08121000);
+	TMP(.dmaBlock[0].chCtrlStatusBase , 0x08121800);
+	TMP(.dmaBlock[0].schedCtrlBase      , 0x08122000);
+	TMP(.dmaBlock[0].schedTableBase     , 0x08122800);
+
+	TMP(.queueMgrInfo[0].queueMgrRgnBase        , 0x08124000);
+	TMP(.queueMgrInfo[0].descMemRgnBase         , 0x08125000);
+	TMP(.queueMgrInfo[0].queueMgmtRgnBase       , 0x08126000);
+	TMP(.queueMgrInfo[0].queueStatusRgnBase     , 0x08126400);
+	//pr_debug("ioremap(0x08121000, 4): %p, IO_ADDRESS(0x08121000): %p\n", ioremap(0x08121000, 4), IO_ADDRESS(0x08121000));
 	pr_debug("q_mgr: %d, rgn_addr: %p, desc_mem_regs: %p, QMGR_MEM_RGN_BASE_REG(rgn): %X\n", q_mgr, rgn_addr, desc_mem_regs, QMGR_MEM_RGN_BASE_REG(rgn));
 	/* Write the base register */
 	__raw_writel(rgn_addr, desc_mem_regs + QMGR_MEM_RGN_BASE_REG(rgn));
@@ -594,7 +610,7 @@ static int alloc_queue(u32 *allocated, const u32 *excluded, unsigned start,
 {
 	u32 bit, mask = 0;
 	int index = -1;
-
+	pr_debug("starting alloc_queue with allocated: %p, allocated[0] = %x\n", allocated, allocated[index]);
 	/*
 	 * We're starting the loop as if we've just wrapped around 32 bits
 	 * in order to save on preloading the bitmasks.
@@ -625,6 +641,7 @@ static int alloc_queue(u32 *allocated, const u32 *excluded, unsigned start,
 		 */
 		if (!(mask & bit)) {
 			allocated[index] |= bit;
+			pr_debug("alloc_queue returning %d. bit: %x, allocated: %p, allocated[%d]: %x\n", start, bit, allocated, index, allocated[index]);
 			return start;
 		}
 	}
@@ -656,8 +673,8 @@ int cppi41_queue_alloc(u8 type, u8 q_mgr, u16 *q_num)
 	/* Last see if an unassigned queue was requested... */
 	if (res < 0 && (type & CPPI41_UNASSIGNED_QUEUE))
 		res = alloc_queue(allocated_queues[q_mgr],
-				  cppi41_queue_mgr[q_mgr].assigned, 0,
-				  cppi41_queue_mgr[q_mgr].num_queue);
+				  cppi41_queue_mgr[q_mgr].assigned,
+				  0, cppi41_queue_mgr[q_mgr].num_queue);
 
 	/* See if any queue was allocated... */
 	if (res < 0)
@@ -692,11 +709,14 @@ EXPORT_SYMBOL(cppi41_queue_free);
 int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 {
 	if (q_mgr >= cppi41_num_queue_mgr ||
-	    q_num >= cppi41_queue_mgr[q_mgr].num_queue)
+	    q_num >= cppi41_queue_mgr[q_mgr].num_queue) {
 		return -EINVAL;
+		pr_debug("cppi: failed to initialise q_num %d\n", q_num);
+	}
 
 	queue_obj->base_addr = cppi41_queue_mgr[q_mgr].q_mgmt_rgn_base +
 			       QMGR_QUEUE_STATUS_REG_A(q_num);
+	pr_debug("cppi: successfully initialised q_num %d\n", q_num);
 
 	return 0;
 }
@@ -715,7 +735,7 @@ void cppi41_queue_push(const struct cppi41_queue_obj *queue_obj, u32 desc_addr,
 	 * TODO: Can't think of a reason why a queue to head may be required.
 	 * If it is, the API may have to be extended.
 	 */
-#if 0
+#if 1 //FIXME was 0 - SP
 	/*
 	 * Also, can't understand why packet size is required to queue up a
 	 * descriptor. The spec says packet size *must* be written prior to
@@ -744,8 +764,8 @@ unsigned long cppi41_queue_pop(const struct cppi41_queue_obj *queue_obj)
 {
 	u32 val = __raw_readl(queue_obj->base_addr + QMGR_QUEUE_REG_D(0));
 
-	pr_debug("Popping value %x from queue @ %p\n",
-		 val, queue_obj->base_addr);
+//	pr_debug("Popping value %x from queue @ %p\n",  //FIXME -SP
+//		 val, queue_obj->base_addr);
 
 	return val & QMGR_QUEUE_DESC_PTR_MASK;
 }
@@ -765,15 +785,19 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 			    dma_teardown[dma_num].rgn_size)
 			break;
 
-	if (dma_num == cppi41_num_dma_block)
+	if (dma_num == cppi41_num_dma_block) {
+		pr_debug("cppi41_get_teardown_info failed: addr (%p) invalid\n", addr);
 		return -EINVAL;
+	}
 
 	desc = addr - dma_teardown[dma_num].phys_addr +
 	       dma_teardown[dma_num].virt_addr;
 
 	if ((desc->teardown_info & CPPI41_DESC_TYPE_MASK) !=
-	    (CPPI41_DESC_TYPE_TEARDOWN << CPPI41_DESC_TYPE_SHIFT))
+	    (CPPI41_DESC_TYPE_TEARDOWN << CPPI41_DESC_TYPE_SHIFT)) {
+		pr_debug("cppi41_get_teardown_info failed: not a teardown descriptor\n");
 		return -EINVAL;
+	}
 
 	*info = desc->teardown_info;
 #if 1
@@ -787,7 +811,7 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 
 	cppi41_queue_push(&dma_teardown[dma_num].queue_obj, addr,
 			  sizeof(struct cppi41_teardown_desc), 0);
-
+	pr_debug("cppi41_get_teardown_info succeeded\n");
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_get_teardown_info);
