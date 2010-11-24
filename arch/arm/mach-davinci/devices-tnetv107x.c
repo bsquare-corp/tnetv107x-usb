@@ -444,28 +444,39 @@ static const struct cppi41_tx_ch tx_ch_info[] = {
 	[0] = {
 		.port_num	= 1,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 16 }, { 0, 17 } }
+		.tx_queue	= { { 0, 62 }, { 0, 64 } }
 	},
 	[1] = {
 		.port_num	= 2,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 18 }, { 0, 19 } }
+		.tx_queue	= { { 0, 66 }, { 0, 68 } }
 	},
 	[2] = {
 		.port_num	= 3,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 20 }, { 0, 21 } }
+		.tx_queue	= { { 0, 70 }, { 0, 72 } }
 	},
 	[3] = {
 		.port_num	= 4,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 22 }, { 0, 23 } }
+		.tx_queue	= { { 0, 74 }, { 0, 76 } }
 	}
 };
 
+#define BASE 0x01e00000
 /* DMA block configuration */
 const struct cppi41_dma_block cppi41_dma_block[1] = {
 	[0] = {
+		.global_ctrl_base	= IO_ADDRESS(BASE + 0x21000),
+		.ch_ctrl_stat_base	= IO_ADDRESS(BASE + 0x21800),
+		.sched_ctrl_base	= IO_ADDRESS(BASE + 0x22000),
+		.sched_table_base	= IO_ADDRESS(BASE + 0x22800),
+		.num_tx_ch		= 4,
+		.num_rx_ch		= 4,
+		.tx_ch_info		= tx_ch_info
+	}
+
+/*	[0] = { // INTENTIONALLY WRONG
 		.global_ctrl_base	= 0xfee21000,
 		.ch_ctrl_stat_base	= 0xfee21800,
 		.sched_ctrl_base	= 0xfee22000,
@@ -474,6 +485,7 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 		.num_rx_ch		= 4,
 		.tx_ch_info		= tx_ch_info
 	}
+*/
 };
 EXPORT_SYMBOL(cppi41_dma_block);
 
@@ -483,17 +495,18 @@ static const u32 assigned_queues[] = { 0x0fffffff, 0 };
 /* Queue manager information */
 const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
 	[0] = {
-		.q_mgr_rgn_base 	= 0xfee24000,
-		.desc_mem_rgn_base	= 0xfee25000,
-		.q_mgmt_rgn_base	= 0xfee26000,
-		.q_stat_rgn_base	= 0xfee26400,
+		.q_mgr_rgn_base 	= IO_ADDRESS(BASE + 0x24000),
+		.desc_mem_rgn_base	= IO_ADDRESS(BASE + 0x25000),
+		.q_mgmt_rgn_base	= IO_ADDRESS(BASE + 0x26000),
+		.q_stat_rgn_base	= IO_ADDRESS(BASE + 0x26400),
 
-		.num_queue		= 64,
+		.num_queue		= 96,
 		.queue_types		= CPPI41_FREE_DESC_BUF_QUEUE |
 					  CPPI41_UNASSIGNED_QUEUE,
 		.base_fdbq_num		= 0,
 		.assigned		= assigned_queues
 	}
+
 };
 
 const u8 cppi41_num_queue_mgr = 1;
@@ -515,7 +528,7 @@ int __init tnetv107x_cppi41_init(void)
 		return ret;
 	}
 
-	ret = cppi41_dma_ctrlr_init(0, 0, 5);
+	ret = cppi41_dma_ctrlr_init(0, 0, 5); // 0 not 30
 	if (ret) {
 		pr_warning("%s: DMA controller initialization failed: %d\n",
 			   __func__, ret);

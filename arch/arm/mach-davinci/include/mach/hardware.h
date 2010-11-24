@@ -24,7 +24,7 @@
 /* System control register offsets */
 #define DM64XX_VDD3P3V_PWDN	0x48
 
-/*
+	/*
  * I/O mapping
  */
 #define IO_PHYS				0x01c00000UL
@@ -34,6 +34,7 @@
 #define io_v2p(va)			((va) - IO_OFFSET)
 #define __IO_ADDRESS(x)			((x) + IO_OFFSET)
 #define IO_ADDRESS(pa)			IOMEM(__IO_ADDRESS(pa))
+//#define IO_ADDRESS(pa)			io_p2v(pa) - Doesn't work - SP
 
 #ifdef __ASSEMBLER__
 #define IOMEM(x)                	x
