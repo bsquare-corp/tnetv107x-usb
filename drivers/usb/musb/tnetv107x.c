@@ -241,6 +241,7 @@ void musb_platform_enable(struct musb *musb)
 {
 	void __iomem *reg_base = musb->ctrl_base;
 	u32 epmask;
+	u32 val,tmp;
 
 	/* Workaround: setup IRQs through both register sets. */
 	epmask = (((musb->epmask & TX_EP_MASK) << USB_INTR_TX_SHIFT) |
@@ -248,6 +249,7 @@ void musb_platform_enable(struct musb *musb)
 
 	musb_writel(reg_base, EP_INTR_MASK_SET_REG, epmask);
 	musb_writel(reg_base, CORE_INTR_MASK_SET_REG, USB_INTR_USB_MASK);
+
 
 	/* Force the DRVVBUS IRQ so we can start polling for ID change. */
 	if (is_otg_enabled(musb))
@@ -402,6 +404,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 	epintr = musb_readl(reg_base, EP_INTR_SRC_MASKED_REG);
 
 	if (epintr) {
+		pr_debug("endpoint interrupt. %X\n", epintr);
 		musb_writel(reg_base, EP_INTR_SRC_CLEAR_REG, epintr);
 
 		musb->int_rx =
@@ -412,10 +415,12 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 
 	/* Get usb core interrupts */
 	usbintr = musb_readl(reg_base, CORE_INTR_SRC_MASKED_REG);
-	if (!usbintr && !epintr)
+	if (!usbintr && !epintr) {
+		pr_debug("unknown interrupt\n");
 		goto eoi;
-
+	}
 	if (usbintr) {
+		pr_debug("core usb interrupt. %X\n", usbintr);
 		musb_writel(reg_base, CORE_INTR_SRC_CLEAR_REG, usbintr);
 
 		musb->int_usb =
@@ -505,8 +510,17 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 	return -EIO;
 }
 
-int __init musb_platform_init(struct musb *musb, void *board_data)
+
+irqreturn_t test_isr(int irq, void *dev_id)
 {
+	printk("got IRQ %d\n", irq);
+	return IRQ_HANDLED;
+}
+
+
+
+
+int __init musb_platform_init(struct musb *musb, void *board_data) {
 	struct platform_device  *pdev;
 	struct musb_hdrc_platform_data *pdata;
 	struct tnetv107x_musb_data *ptnetv_musb_data;
@@ -520,9 +534,14 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	musb->xceiv = otg_get_transceiver();
 	if (!musb->xceiv)
 		goto fail;
-
 	musb->mregs += MENTOR_CORE_OFFSET;
-
+	pr_debug("requesting IRQ 35\n");
+	if (request_irq( 35, test_isr, 0, "Leo_cppi41_cdma", &musb->mregs))
+	{
+		ret = -ENODEV;
+		goto fail;
+		pr_debug("failed to get IRQ\n");
+	}
 	clk_enable(musb->clock);
 	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
 	/* Returns zero if e.g. not clocked */
@@ -658,12 +677,13 @@ done:
  * ---------------------------------
  */
 
-static const u16 tx_comp_q[] = { 24, 25 };
-static const u16 rx_comp_q[] = { 26, 27 };
+static const u16 tx_comp_q[] = { 92, 93 };
+static const u16 rx_comp_q[] = { 0,0 };
 
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
-        .ep_dma_ch      = { 0, 1, 2, 3 },
+//        .ep_dma_ch      = { 0, 1, 2, 3 },
+        .ep_dma_ch      = { 1,2,3,4 }, //just a test -SP
         .q_mgr          = 0,
         .num_tx_comp_q  = 2,
         .num_rx_comp_q  = 2,

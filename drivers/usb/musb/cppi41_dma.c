@@ -19,6 +19,10 @@
  *
  */
 
+#define DEBUG_CPPI_TD
+#define USBDRV_DEBUG
+#define DEBUG
+
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
 
@@ -35,8 +39,6 @@
 #define USB_CPPI41_CH_NUM_PD	64	/* 4K bulk data at full speed */
 #define USB_CPPI41_MAX_PD	(USB_CPPI41_CH_NUM_PD * USB_CPPI41_NUM_CH)
 
-#define DEBUG_CPPI_TD
-#define USBDRV_DEBUG
 
 #ifdef USBDRV_DEBUG
 #define dprintk(x, ...) printk(x, ## __VA_ARGS__)
@@ -44,8 +46,8 @@
 #define dprintk(x, ...)
 #endif
 
-#undef pr_debug
-#define pr_debug(A, ...) printk(## __VA_ARGS__)
+#undef DBG
+#define DBG(A, B, ...) printk(B, ## __VA_ARGS__)
 
 /*
  * Data structure definitions
@@ -181,6 +183,16 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	 * requires the descriptor count to be a multiple of 2 ^ 5 (i.e. 32).
 	 * Similarly, the descriptor size should also be a multiple of 32.
 	 */
+#define TMP(A) printk(#A " = %p \n", A)
+	TMP(cppi41_dma_block[0].global_ctrl_base);
+	TMP(cppi41_dma_block[0].ch_ctrl_stat_base);
+	TMP(cppi41_dma_block[0].sched_ctrl_base);
+	TMP(cppi41_dma_block[0].sched_table_base);
+
+//	TMP(cppi41_queue_mgr[0].q_mgr_rgn_base);
+//	TMP(cppi41_queue_mgr[0].desc_mem_rgn_base);
+//	TMP(cppi41_queue_mgr[0].q_mgmt_rgn_base);
+//	TMP(cppi41_queue_mgr[0].q_stat_rgn_base);
 
 	/*
 	 * Allocate free packet descriptor pool for all Tx/Rx endpoints --
@@ -211,6 +223,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		DBG(1, "ERROR: teardown completion queue allocation failed\n");
 		goto free_mem_rgn;
 	}
+	cppi->teardownQNum = 92;
 	DBG(4, "Allocated teardown completion queue %d in queue manager 0\n",
 	    cppi->teardownQNum);
 
@@ -425,7 +438,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 	if (cppi41_queue_init(&cppi_ch->queue_obj, cppi_ch->src_queue.q_mgr,
 			       cppi_ch->src_queue.q_num)) {
 		DBG(1, "ERROR: cppi41_queue_init failed for %s queue",
-		    is_tx ? "Tx" : "Rx free descriptor/buffer");
+		    is_tx ? "Tx" : "Rx free descriptor/buffer %d\n", cppi_ch->src_queue.q_num);
 		if (is_tx == 0 &&
 		    cppi41_queue_free(cppi_ch->src_queue.q_mgr,
 				      cppi_ch->src_queue.q_num))
@@ -1130,7 +1143,7 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 	if (cppi41_queue_init(&tx_queue_obj, usb_cppi41_info.q_mgr,
 			      usb_cppi41_info.tx_comp_q[index])) {
 		DBG(1, "ERROR: cppi41_queue_init failed for "
-		    "Tx completion queue");
+		    "Tx completion queue %d\n", usb_cppi41_info.tx_comp_q[index]);
 		return;
 	}
 
@@ -1179,7 +1192,7 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 
 	if (cppi41_queue_init(&rx_queue_obj, usb_cppi41_info.q_mgr,
 			      usb_cppi41_info.rx_comp_q[index])) {
-		DBG(1, "ERROR: cppi41_queue_init failed for Rx queue\n");
+		DBG(1, "ERROR: cppi41_queue_init failed for Rx queue %d\n", usb_cppi41_info.rx_comp_q[index]);
 		return;
 	}
 
