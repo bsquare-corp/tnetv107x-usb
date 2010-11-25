@@ -26,6 +26,9 @@
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
 
+#include <linux/kthread.h>
+#include <linux/workqueue.h>
+
 #include <mach/cppi41.h>
 #include <mach/tnetv107x.h>
 
@@ -262,6 +265,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		cppi_ch->ch_num = i;
 		cppi_ch->channel.private_data = cppi;
 
+		pr_debug("USB EP%d -> CPPI channel %d\n", i, usb_cppi41_info.ep_dma_ch[i]);
 		/*
 		 * Extract the CPPI 4.1 DMA Tx channel configuration and
 		 * construct/store the Tx PD tag info field for later use...
@@ -301,6 +305,10 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 
 	/* Disable the CDC/RNDIS modes */
 	musb_writel(reg_base, USB_MODE_REG, 0);
+
+	//kthread_create(cppi_testthread, cppi->musb, "cppi_testthread");
+	//queue_delayed_work(create_workqueue("cppi_test"), &cppi_test, 100);
+
 
 	return 1;
 
@@ -390,8 +398,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		    is_tx ? 'T' : 'R', ep_num);
 		return NULL;
 	}
-
-	cppi_ch = (is_tx ? cppi->tx_cppi_ch : cppi->rx_cppi_ch) + ch_num; //am added -1
+	cppi_ch = (is_tx ? cppi->tx_cppi_ch : cppi->rx_cppi_ch) + ch_num;
 
 	/* As of now, just return the corresponding CPPI 4.1 channel handle */
 	if (is_tx) {
@@ -445,8 +452,8 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 	/* Initialize the CPPI 4.1 DMA source queue */
 	if (cppi41_queue_init(&cppi_ch->queue_obj, cppi_ch->src_queue.q_mgr,
 			       cppi_ch->src_queue.q_num)) {
-		DBG(1, "ERROR: cppi41_queue_init failed for %s queue",
-		    is_tx ? "Tx" : "Rx free descriptor/buffer %d\n", cppi_ch->src_queue.q_num);
+		DBG(1, "ERROR: cppi41_queue_init failed for %s queue, free descriptor/buffer %d\n",
+		    is_tx ? "Tx" : "Rx", cppi_ch->src_queue.q_num);
 		if (is_tx == 0 &&
 		    cppi41_queue_free(cppi_ch->src_queue.q_mgr,
 				      cppi_ch->src_queue.q_num))
@@ -466,7 +473,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 	cppi_ch->ch_num = ch_num;
 	cppi_ch->channel.status = MUSB_DMA_STATUS_FREE;
 
-	DBG(4, "Allocated DMA %cx channel %d for EP%d\n", is_tx ? 'T' : 'R',
+	pr_debug("Allocated DMA %cx channel %d for EP%d\n", is_tx ? 'T' : 'R',
 	    ch_num, ep_num);
 
 	return &cppi_ch->channel;
