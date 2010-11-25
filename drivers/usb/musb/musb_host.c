@@ -1173,6 +1173,7 @@ void musb_host_tx(struct musb *musb, u8 epnum)
 	if (status) {
 		if (dma_channel_status(dma) == MUSB_DMA_STATUS_BUSY) {
 			dma->status = MUSB_DMA_STATUS_CORE_ABORT;
+			printk("HERE 1\n");
 			(void) musb->dma_controller->channel_abort(dma);
 		}
 
@@ -1413,6 +1414,7 @@ static void musb_bulk_rx_nak_timeout(struct musb *musb, struct musb_hw_ep *ep)
 		urb = next_urb(cur_qh);
 		if (dma_channel_status(dma) == MUSB_DMA_STATUS_BUSY) {
 			dma->status = MUSB_DMA_STATUS_CORE_ABORT;
+			printk("HERE 2\n");
 			musb->dma_controller->channel_abort(dma);
 			urb->actual_length += dma->actual_len;
 			dma->actual_len = 0L;
@@ -1532,6 +1534,7 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 		/* clean up dma and collect transfer count */
 		if (dma_channel_status(dma) == MUSB_DMA_STATUS_BUSY) {
 			dma->status = MUSB_DMA_STATUS_CORE_ABORT;
+			printk("HERE 3\n");
 			(void) musb->dma_controller->channel_abort(dma);
 			xfer_len = dma->actual_len;
 		}
@@ -1563,6 +1566,7 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 		 */
 		if (dma_channel_status(dma) == MUSB_DMA_STATUS_BUSY) {
 			dma->status = MUSB_DMA_STATUS_CORE_ABORT;
+			printk("HERE 5\n");
 			(void) musb->dma_controller->channel_abort(dma);
 			xfer_len = dma->actual_len;
 			done = true;
@@ -2104,6 +2108,7 @@ static int musb_cleanup_urb(struct urb *urb, struct musb_qh *qh)
 
 		dma = is_in ? ep->rx_channel : ep->tx_channel;
 		if (dma) {
+			printk("FINAL EHRE\n");
 			status = ep->musb->dma_controller->channel_abort(dma);
 			DBG(status ? 1 : 3,
 				"abort %cX%d DMA for urb %p --> %d\n",
