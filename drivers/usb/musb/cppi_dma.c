@@ -85,6 +85,7 @@ cppi_bd_free(struct cppi_channel *c, struct cppi_descriptor *bd)
 /* zero out entire rx state RAM entry for the channel */
 static void cppi_reset_rx(struct cppi_rx_stateram __iomem *rx)
 {
+	printk("cppi_reset_rx\n");
 	musb_writel(&rx->rx_skipbytes, 0, 0);
 	musb_writel(&rx->rx_head, 0, 0);
 	musb_writel(&rx->rx_sop, 0, 0);
@@ -97,6 +98,7 @@ static void cppi_reset_rx(struct cppi_rx_stateram __iomem *rx)
 /* zero out entire tx state RAM entry for the channel */
 static void cppi_reset_tx(struct cppi_tx_stateram __iomem *tx, u32 ptr)
 {
+	printk("cppi_reset_tx\n");
 	musb_writel(&tx->tx_head, 0, 0);
 	musb_writel(&tx->tx_buf, 0, 0);
 	musb_writel(&tx->tx_current, 0, 0);
@@ -269,11 +271,12 @@ static int cppi_controller_stop(struct dma_controller *c)
  */
 static inline void core_rxirq_disable(void __iomem *tibase, unsigned epnum)
 {
-	musb_writel(tibase, DAVINCI_USB_INT_MASK_CLR_REG, 1 << (epnum + 8));
+//	musb_writel(tibase, DAVINCI_USB_INT_MASK_CLR_REG, 1 << (epnum + 8));
 }
 
 static inline void core_rxirq_enable(void __iomem *tibase, unsigned epnum)
 {
+	printk("IRQ enable\n");
 	musb_writel(tibase, DAVINCI_USB_INT_MASK_SET_REG, 1 << (epnum + 8));
 }
 
@@ -1160,6 +1163,8 @@ irqreturn_t cppi_interrupt(int irq, void *dev_id)
 	u32			rx, tx;
 	int			i, index;
 	unsigned long		uninitialized_var(flags);
+
+	printk("CPPI INTERRUPT\n");
 
 	cppi = container_of(musb->dma_controller, struct cppi, controller);
 	if (cppi->irq)
