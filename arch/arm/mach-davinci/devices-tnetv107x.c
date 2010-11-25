@@ -471,8 +471,8 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 		.ch_ctrl_stat_base	= IO_ADDRESS(BASE + 0x21800),
 		.sched_ctrl_base	= IO_ADDRESS(BASE + 0x22000),
 		.sched_table_base	= IO_ADDRESS(BASE + 0x22800),
-		.num_tx_ch		= 4,
-		.num_rx_ch		= 4,
+		.num_tx_ch		= 15,
+		.num_rx_ch		= 15,
 		.tx_ch_info		= tx_ch_info
 	}
 
