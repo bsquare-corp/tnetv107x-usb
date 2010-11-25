@@ -149,6 +149,7 @@ static void print_pd_list(struct usb_pkt_desc *pd_pool_head)
 static struct usb_pkt_desc *usb_get_free_pd(struct cppi41 *cppi)
 {
 	struct usb_pkt_desc *free_pd = cppi->pd_pool_head;
+	if (free_pd == NULL) printk("Nothing!!!\n");
 
 	if (free_pd != NULL) {
 		cppi->pd_pool_head = free_pd->next_pd_ptr;
@@ -177,6 +178,8 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	struct usb_pkt_desc *curr_pd;
 	unsigned long pd_addr;
 	int i;
+
+	printk("CONTROLLER START\n");
 
 	cppi = container_of(controller, struct cppi41, controller);
 
@@ -251,6 +254,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		pd_addr += USB_CPPI41_DESC_ALIGN;
 	}
 
+	printk("TX array size is %d\n", ARRAY_SIZE(cppi->tx_cppi_ch));
 	/* Configure the Tx channels */
 	for (i = 0, cppi_ch = cppi->tx_cppi_ch;
 	     i < ARRAY_SIZE(cppi->tx_cppi_ch); ++i, ++cppi_ch) {
@@ -278,6 +282,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	}
 
 	/* Configure the Rx channels */
+	printk("RX array size is %d\n", ARRAY_SIZE(cppi->rx_cppi_ch));
 	for (i = 0, cppi_ch = cppi->rx_cppi_ch;
 	     i < ARRAY_SIZE(cppi->rx_cppi_ch); ++i, ++cppi_ch) {
 		memset(cppi_ch, 0, sizeof(struct cppi41_channel));
@@ -372,6 +377,7 @@ static int cppi41_controller_stop(struct dma_controller *controller)
  * endpoint, so allocating (and deallocating) is mostly a way to notice bad
  * housekeeping on the software side.  We assume the IRQs are always active.
  */
+
 static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 						*controller,
 						struct musb_hw_ep *ep, u8 is_tx)
@@ -384,6 +390,8 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 
 	/* Remember, ep_num: 1 .. Max_EP, and CPPI ch_num: 0 .. Max_EP - 1 */
 	ch_num = ep_num - 1;
+
+	printk("Trying %d\n", ch_num);
 
 	if (ep_num > USB_CPPI41_NUM_CH) {
 		DBG(1, "No %cx DMA channel for EP%d\n",
@@ -710,6 +718,9 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 	struct usb_pkt_desc *curr_pd;
 	struct cppi41_host_pkt_desc *hw_desc;
+
+	if (rx_ch == NULL) { printk("BOOM\n"); return 0; } 
+
 	u32 length = rx_ch->length - rx_ch->curr_offset;
 	u32 pkt_size = rx_ch->pkt_size;
 
@@ -718,6 +729,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * transfer in one PD and one IRQ (or two with a short packet).
 	 */
 	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
+		printk("A\n");
 		cppi41_mode_update(rx_ch, USB_GENERIC_RNDIS_MODE);
 		cppi41_autoreq_update(rx_ch, USB_AUTOREQ_ALL_BUT_EOP);
 
@@ -727,6 +739,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 			pkt_size = 0x10000;
 		cppi41_set_ep_size(rx_ch, pkt_size);
 	} else {
+		printk("B\n");
 		cppi41_mode_update(rx_ch, USB_TRANSPARENT_MODE);
 		cppi41_autoreq_update(rx_ch, USB_NO_AUTOREQ);
 	}
@@ -737,19 +750,22 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	    rx_ch->curr_offset, rx_ch->length);
 
 	/* Get Rx packet descriptor from the free pool */
+	if (cppi == NULL){ printk("Boom 2\n"); return 0; }
 	curr_pd = usb_get_free_pd(cppi);
 	if (curr_pd == NULL) {
 		/* Shouldn't ever happen! */
 		ERR("No Rx PDs\n");
 		return 0;
 	}
-
+	printk("---\n");
+	if (rx_ch == NULL) printk("Boom 3\n");
 	/*
 	 * HCD arranged ReqPkt for the first packet.
 	 * We arrange it for all but the last one.
 	 */
 	if (is_host_active(cppi->musb) && rx_ch->channel.actual_len) {
 		void __iomem *epio = rx_ch->end_pt->regs;
+		if (epio == NULL) printk("BOOM 4\n");
 		u16 csr = musb_readw(epio, MUSB_RXCSR);
 
 		csr |= MUSB_RXCSR_H_REQPKT | MUSB_RXCSR_H_WZC_BITS;
@@ -759,6 +775,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	if (length < pkt_size)
 		pkt_size = length;
 
+	printk("-sdasda\n");
 	hw_desc = &curr_pd->hw_desc;
 	hw_desc->orig_buf_ptr = rx_ch->start_addr + rx_ch->curr_offset;
 	hw_desc->orig_buf_len = pkt_size;
@@ -768,6 +785,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 
 	rx_ch->curr_offset += pkt_size;
 
+	printk("-sdasdrrra\n");
 	/*
 	 * Push the free Rx packet descriptor
 	 * to the free descriptor/buffer queue.
@@ -1250,6 +1268,8 @@ void cppi41_completion(struct musb *musb, u32 rx, u32 tx)
 {
 	struct cppi41 *cppi;
 	unsigned index;
+
+	printk("COMP <-------------\n");
 
 	cppi = container_of(musb->dma_controller, struct cppi41, controller);
 
