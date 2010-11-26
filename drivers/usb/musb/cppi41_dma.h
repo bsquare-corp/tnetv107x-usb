@@ -107,4 +107,5 @@ extern const struct usb_cppi41_info usb_cppi41_info;
  */
 void cppi41_completion(struct musb *musb, u32 rx, u32 tx);
 
+void do_completion(void *cppi);
 #endif	/* _CPPI41_DMA_H_ */
