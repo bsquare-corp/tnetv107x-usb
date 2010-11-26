@@ -219,7 +219,11 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 				 get_count_order(USB_CPPI41_MAX_PD),
 				 &cppi->pd_mem_rgn)) {
 		DBG(1, "ERROR: queue manager memory region allocation "
-		    "failed\n");
+		    "failed.\n");
+		TMP(usb_cppi41_info.q_mgr);
+		TMP(cppi->pd_mem_phys);
+		TMP(USB_CPPI41_DESC_SIZE_SHIFT);
+		TMP(get_count_order(USB_CPPI41_MAX_PD));
 		goto free_pds;
 	}
 
@@ -513,7 +517,7 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 		void __iomem *reg_base = cppi->musb->ctrl_base;
 		u32 reg_val = musb_readl(reg_base, USB_MODE_REG);
 		u8 ep_num = cppi_ch->ch_num + 1;
-
+		pr_debug("switching channel %d (ep%d) to mode %u. using reg %p+%x (%p)\n", cppi_ch->ch_num, ep_num, mode, reg_base, USB_MODE_REG, reg_base + USB_MODE_REG);
 		if (cppi_ch->transmit) {
 			reg_val &= ~USB_TX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_TX_MODE_SHIFT(ep_num);
