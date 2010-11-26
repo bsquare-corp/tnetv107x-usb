@@ -436,7 +436,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 		musb->int_tx =
 			(epintr & TX_INTR_MASK) >> USB_INTR_TX_SHIFT;
 	}
-
+//	cppi41_completion(musb, 92+93+94+95, 92+93+94+95);
 	/* Get usb core interrupts */
 	usbintr = musb_readl(reg_base, CORE_INTR_SRC_MASKED_REG);
 	if (!usbintr && !epintr) {
@@ -722,7 +722,7 @@ static const u16 rx_comp_q[] = { 0,0 };
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
 //        .ep_dma_ch      = { 0, 1, 2, 3 },
-        .ep_dma_ch      = {15,16,17,18 }, //just a test -SP
+        .ep_dma_ch      = { 15, 16, 17, 18 },
         .q_mgr          = 0,
         .num_tx_comp_q  = 2,
         .num_rx_comp_q  = 2,
