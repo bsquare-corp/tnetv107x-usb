@@ -511,9 +511,10 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 }
 
 
-irqreturn_t test_isr(int irq, void *dev_id)
+irqreturn_t test_isr(int irq, void *data)
 {
 	printk("got IRQ %d\n", irq);
+	cppi41_completion(data, 0x01, 0x01);
 	return IRQ_HANDLED;
 }
 
@@ -536,7 +537,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 		goto fail;
 	musb->mregs += MENTOR_CORE_OFFSET;
 	pr_debug("requesting IRQ 35\n");
-	if (request_irq( 35, test_isr, 0, "Leo_cppi41_cdma", &musb->mregs))
+	if (request_irq( 35, test_isr, 0, "Leo_cppi41_cdma", musb))
 	{
 		ret = -ENODEV;
 		goto fail;
