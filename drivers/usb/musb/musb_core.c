@@ -2037,14 +2037,18 @@ bad_config:
 	}
 
 #ifndef CONFIG_MUSB_PIO_ONLY
+printk("DMA MODE TURNONED ONE\n");
 	if (use_dma && dev->dma_mask) {
 		struct dma_controller	*c;
 
 		c = dma_controller_create(musb, musb->mregs);
 		musb->dma_controller = c;
-		if (c)
+		if (c){
 			(void) c->start(c);
+			printk("started\n");
+		}
 	}
+	else printk("UNABLE TO STRT CONTROLLER\n");
 #endif
 	/* ideally this would be abstracted in platform setup */
 	if (!is_dma_capable() || !musb->dma_controller)

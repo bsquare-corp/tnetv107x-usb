@@ -288,6 +288,8 @@ static irqreturn_t da8xx_interrupt(int irq, void *hci)
 
 	spin_lock_irqsave(&musb->lock, flags);
 
+	printk("INTERRUPT <-----------\n");
+
 	/*
 	 * NOTE: DA8XX shadows the Mentor IRQs.  Don't manage them through
 	 * the Mentor registers (except for setup), use the TI ones and EOI.
