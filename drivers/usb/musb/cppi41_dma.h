@@ -75,7 +75,7 @@
 
 #define USB_MENTOR_CORE_OFFSET	0x400
 
-#define USB_CPPI41_NUM_CH	96 /* FIXME: could be wrong, but better it's too big than too small... -SP */
+#define USB_CPPI41_NUM_CH	32
 
 /**
  * struct usb_cppi41_info - CPPI 4.1 USB implementation details
