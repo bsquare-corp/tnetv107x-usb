@@ -519,9 +519,14 @@ static const u8 dma_sched_table[] = {
 
 int __init tnetv107x_cppi41_init(void)
 {
+	void *ptr;
 	int ret;
 	pr_debug("initialising cppi41\n");
-	ret = cppi41_queue_mgr_init(0, 0, 0);
+	dma_alloc_coherent(NULL, 0x1000,
+                                 &ptr,
+                                 GFP_KERNEL | GFP_DMA);
+
+	ret = cppi41_queue_mgr_init(0, ptr, 0x1000);
 	if (ret) {
 		pr_warning("%s: queue manager initialization failed: %d\n",
 			   __func__, ret);
