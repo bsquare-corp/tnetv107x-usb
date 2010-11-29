@@ -537,8 +537,13 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 
 irqreturn_t test_isr(int irq, void *data)
 {
+	unsigned long flags;
+	struct musb *musb = data;
 	printk("got IRQ %d\n", irq);
-	cppi41_completion(data, 0x01, 0x01);
+	spin_lock_irqsave(&musb->lock, flags);
+	cppi41_completion(data, 0x03, 0x03);
+	musb_writel(musb->ctrl_base, USB_END_OF_INTR_REG, 0);
+	spin_unlock_irqrestore(&musb->lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -718,7 +723,7 @@ done:
  */
 
 static const u16 tx_comp_q[] = { 92, 93 };
-static const u16 rx_comp_q[] = { 0,0 };
+static const u16 rx_comp_q[] = { 94, 95 };
 
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
