@@ -20,6 +20,8 @@
 #include <linux/slab.h>
 #include <linux/phy.h>
 
+#include <asm/pmu.h>
+
 #include <mach/common.h>
 #include <mach/irqs.h>
 #include <mach/edma.h>
@@ -435,6 +437,21 @@ static struct platform_device ssp_device = {
 	.resource	= ssp_resources,
 };
 
+static struct resource pmu_resources[] = {
+	{
+		.start	= IRQ_TNETV107X_ARM_NPMUIRQ,
+		.end	= IRQ_TNETV107X_ARM_NPMUIRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device pmu_device = {
+	.name		= "arm-pmu",
+	.id		= ARM_PMU_DEVICE_CPU,
+	.num_resources	= ARRAY_SIZE(pmu_resources),
+	.resource	= pmu_resources,
+};
+
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
 	int i, error;
@@ -456,6 +473,7 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 	platform_device_register(&mdio_device);
 	platform_device_register(&tnetv107x_wdt_device);
 	platform_device_register(&tsc_device);
+	platform_device_register(&pmu_device);
 
 	if (info->serial_config)
 		davinci_serial_init(info->serial_config);
