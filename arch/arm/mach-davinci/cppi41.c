@@ -78,11 +78,11 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
 
 	__raw_writel(rgn0_size, q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG);
-	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
+	pr_debug("Linking RAM region 0 size @ %p, value: %x (wrote %x)\n",
 		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG), rgn0_size);
 
-	ptr = dma_alloc_coherent(NULL, 0x10000 - rgn0_size * 4,
+	ptr = dma_alloc_coherent(NULL, 0x40000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
 				 GFP_KERNEL | GFP_DMA);
 	if (ptr == NULL) {
@@ -96,7 +96,7 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 		     q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG);
 	pr_debug("Linking RAM region 1 base @ %p, value: %x (size: %d)\n",
 		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG), 0x10000 - rgn0_size * 4);
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG), 0x40000 - rgn0_size * 4);
 
 	ptr = kzalloc(BITS_TO_LONGS(cppi41_queue_mgr[q_mgr].num_queue),
 		      GFP_KERNEL);
@@ -165,6 +165,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		error = -ENOMEM;
 		goto free_queue;
 	}
+	pr_debug("Allocated teardown descriptors. phys: %p, virt: %p, size: %d\n", dma_teardown[dma_num].phys_addr, ptr, dma_teardown[dma_num].rgn_size);
 	dma_teardown[dma_num].virt_addr = ptr;
 
 	error = cppi41_mem_rgn_alloc(q_mgr, dma_teardown[dma_num].phys_addr, 5,
@@ -174,7 +175,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		       "region for teardown descriptors.\n", __func__);
 		goto free_mem;
 	}
-
+	pr_debug("allocated queue manager memory region for teardown descriptors. mem_rgn: %p, num_order: %d\n", dma_teardown[dma_num].mem_rgn, num_order);
 	error = cppi41_queue_init(&dma_teardown[dma_num].queue_obj, 0, q_num);
 	if (error) {
 		pr_err("ERROR: %s: Unable to initialize teardown free "
@@ -194,7 +195,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 				  sizeof(*curr_td), 0);
 		td_addr += sizeof(*curr_td);
 	}
-
+	return 0;
 free_rgn:
 	cppi41_mem_rgn_free(q_mgr, dma_teardown[dma_num].mem_rgn);
 free_mem:
@@ -294,18 +295,7 @@ int cppi41_mem_rgn_alloc(u8 q_mgr, dma_addr_t rgn_addr, u8 size_order,
 	next_desc_index[q_mgr] = index + num_desc;
 
 	desc_mem_regs = cppi41_queue_mgr[q_mgr].desc_mem_rgn_base;
-	#define TMP(A, B) pr_debug(#A "  ioremap(" #B ", 4): %p, IO_ADDRESS(" #B "): %p\n", ioremap(B, 4), IO_ADDRESS(B));
-	TMP(.dmaBlock[0].globalCtrlBase, 0x08121000);
-	TMP(.dmaBlock[0].chCtrlStatusBase , 0x08121800);
-	TMP(.dmaBlock[0].schedCtrlBase      , 0x08122000);
-	TMP(.dmaBlock[0].schedTableBase     , 0x08122800);
-
-	TMP(.queueMgrInfo[0].queueMgrRgnBase        , 0x08124000);
-	TMP(.queueMgrInfo[0].descMemRgnBase         , 0x08125000);
-	TMP(.queueMgrInfo[0].queueMgmtRgnBase       , 0x08126000);
-	TMP(.queueMgrInfo[0].queueStatusRgnBase     , 0x08126400);
-	//pr_debug("ioremap(0x08121000, 4): %p, IO_ADDRESS(0x08121000): %p\n", ioremap(0x08121000, 4), IO_ADDRESS(0x08121000));
-	pr_debug("q_mgr: %d, rgn_addr: %p, desc_mem_regs: %p, QMGR_MEM_RGN_BASE_REG(rgn): %X\n", q_mgr, rgn_addr, desc_mem_regs, QMGR_MEM_RGN_BASE_REG(rgn));
+	pr_debug("q_mgr: %d, rgn_addr: %p, desc_mem_regs: %p, rng: %d QMGR_MEM_RGN_BASE_REG(rgn): %X\n", q_mgr, rgn_addr, desc_mem_regs, rgn, QMGR_MEM_RGN_BASE_REG(rgn));
 	/* Write the base register */
 	__raw_writel(rgn_addr, desc_mem_regs + QMGR_MEM_RGN_BASE_REG(rgn));
 	pr_debug("Descriptor region base @ %p, value: %x\n",
@@ -428,8 +418,8 @@ void cppi41_dma_ch_default_queue(struct cppi41_dma_ch_obj *dma_ch_obj,
 	/* Get the current state of the enable bit. */
 	dma_ch_obj->global_cfg = val |= __raw_readl(dma_ch_obj->base_addr);
 	__raw_writel(val, dma_ch_obj->base_addr);
-	pr_debug("Channel global configuration @ %p, value written: %x, "
-		 "value read: %x\n", dma_ch_obj->base_addr, val,
+	pr_debug("Channel global configuration @ %p, value written: %x (%d,%d), "
+		 "value read: %x\n", dma_ch_obj->base_addr, val, q_mgr, q_num,
 		 __raw_readl(dma_ch_obj->base_addr));
 
 }
@@ -762,7 +752,7 @@ void cppi41_queue_push(const struct cppi41_queue_obj *queue_obj, u32 desc_addr,
 	 * TODO: Can't think of a reason why a queue to head may be required.
 	 * If it is, the API may have to be extended.
 	 */
-#if 1 //FIXME was 0 - SP
+#if 0 //FIXME was 0 - SP
 	/*
 	 * Also, can't understand why packet size is required to queue up a
 	 * descriptor. The spec says packet size *must* be written prior to
@@ -778,7 +768,7 @@ void cppi41_queue_push(const struct cppi41_queue_obj *queue_obj, u32 desc_addr,
 	       QMGR_QUEUE_DESC_SIZE_MASK) |
 	      (desc_addr & QMGR_QUEUE_DESC_PTR_MASK);
 
-	pr_debug("Pushing value %x to queue @ %p\n", val, queue_obj->base_addr);
+	pr_debug("Pushing value %x (desc_size %d, desc_addr %p) to queue @ %p\n", val, desc_size, desc_addr, queue_obj->base_addr);
 
 	__raw_writel(val, queue_obj->base_addr + QMGR_QUEUE_REG_D(0));
 }
