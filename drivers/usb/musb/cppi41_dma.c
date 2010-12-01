@@ -180,20 +180,21 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	int i;
 
 	printk("CONTROLLER START\n");
+	tnetv107x_cppi41_init();
 
 	cppi = container_of(controller, struct cppi41, controller);
 
-	tnetv107x_cppi41_init();
 	/*
 	 * TODO: We may need to check USB_CPPI41_MAX_PD here since CPPI 4.1
 	 * requires the descriptor count to be a multiple of 2 ^ 5 (i.e. 32).
 	 * Similarly, the descriptor size should also be a multiple of 32.
 	 */
 #define TMP(A) printk(#A " = %p \n", A)
-	TMP(cppi41_dma_block[0].global_ctrl_base);
-	TMP(cppi41_dma_block[0].ch_ctrl_stat_base);
-	TMP(cppi41_dma_block[0].sched_ctrl_base);
-	TMP(cppi41_dma_block[0].sched_table_base);
+//	TMP(cppi41_dma_block[0].global_ctrl_base);
+//	TMP(cppi41_dma_block[0].ch_ctrl_stat_base);
+//	TMP(cppi41_dma_block[0].sched_ctrl_base);
+//	TMP(cppi41_dma_block[0].sched_table_base);
+//	TMP(USB_CPPI41_MAX_PD);
 
 //	TMP(cppi41_queue_mgr[0].q_mgr_rgn_base);
 //	TMP(cppi41_queue_mgr[0].desc_mem_rgn_base);
@@ -233,7 +234,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		DBG(1, "ERROR: teardown completion queue allocation failed\n");
 		goto free_mem_rgn;
 	}
-	cppi->teardownQNum = 92;
+	cppi->teardownQNum = 94;
 	DBG(4, "Allocated teardown completion queue %d in queue manager 0\n",
 	    cppi->teardownQNum);
 
@@ -269,7 +270,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		cppi_ch->ch_num = i;
 		cppi_ch->channel.private_data = cppi;
 
-		pr_debug("USB EP%d -> CPPI channel %d\n", i, usb_cppi41_info.ep_dma_ch[i]);
 		/*
 		 * Extract the CPPI 4.1 DMA Tx channel configuration and
 		 * construct/store the Tx PD tag info field for later use...
@@ -283,6 +283,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 				     CPPI41_SRC_TAG_CH_NUM_SHIFT) |
 				    (tx_info->sub_ch_num <<
 				     CPPI41_SRC_TAG_SUB_CH_NUM_SHIFT);
+		pr_debug("USB EP%d -> CPPI channel %d (src_queue: %p, cppi_ch: %p)\n", i, usb_cppi41_info.ep_dma_ch[i], cppi_ch->src_queue, cppi_ch);
 	}
 
 	/* Configure the Rx channels */
@@ -780,7 +781,6 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	if (length < pkt_size)
 		pkt_size = length;
 
-	printk("-sdasda\n");
 	hw_desc = &curr_pd->hw_desc;
 	hw_desc->orig_buf_ptr = rx_ch->start_addr + rx_ch->curr_offset;
 	hw_desc->orig_buf_len = pkt_size;
@@ -790,7 +790,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 
 	rx_ch->curr_offset += pkt_size;
 
-	printk("-sdasdrrra\n");
+	printk("prepared pd. orig_buf_ptr: %p, orig_buf_len: %d, ch_num: %d, ep_num: %d\n", hw_desc->orig_buf_ptr, hw_desc->orig_buf_len, curr_pd->ch_num, curr_pd->ep_num);
 	/*
 	 * Push the free Rx packet descriptor
 	 * to the free descriptor/buffer queue.
@@ -850,6 +850,7 @@ static int cppi41_channel_program(struct dma_channel *channel,	u16 maxpacket,
 	cppi_ch->length = length;
 	cppi_ch->transfer_mode = mode;
 	cppi_ch->zlp_queued = 0;
+	cppi_ch->channel.actual_len = 0; //from http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=5c905779477a366aed773ffc4f4979448140a96f -SP
 
 	/* Tx or Rx channel? */
 	if (cppi_ch->transmit)
@@ -936,8 +937,12 @@ static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
  */
 static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 {
+	unsigned long timeout;
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 
+
+//	spin_unlock_irq(&cppi->musb->lock);
+//	spin_lock(&cppi->musb->lock);
 	cppi41_dma_ch_default_queue(&rx_ch->dma_ch_obj, 0, cppi->teardownQNum);
 
 	/* Initiate teardown for Rx DMA channel */
@@ -945,13 +950,19 @@ static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 
 	while (1) {
 		struct usb_pkt_desc *curr_pd;
-		unsigned long pd_addr;
-
+		unsigned long pd_addr = 0;
+		timeout = 10000;
 		/* Wait for a descriptor to be queued and pop it... */
 		do {
+			udelay(2000);
 			pd_addr = cppi41_queue_pop(&cppi->queue_obj);
-		} while (!pd_addr);
+		} while (!pd_addr /*&& --timeout */);
 
+//		if (!timeout) {
+//			pr_debug("didn't get teardown descriptor\n");
+//			cppi41_dma_ch_teardown(&rx_ch->dma_ch_obj);
+//			continue;
+//		}
 		dprintk("Descriptor (%08lx) popped from teardown completion "
 			"queue\n", pd_addr);
 
@@ -987,6 +998,8 @@ static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 	/* Now restore the default Rx completion queue... */
 	cppi41_dma_ch_default_queue(&rx_ch->dma_ch_obj, usb_cppi41_info.q_mgr,
 				    usb_cppi41_info.rx_comp_q[0]);
+//	spin_unlock(&cppi->musb->lock);
+//	spin_lock_irq(&cppi->musb->lock);
 }
 
 /*
@@ -1050,6 +1063,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		csr  = musb_readw(epio, MUSB_TXCSR);
 		csr |= MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_TXCSR, csr);
+		musb_writew(epio, MUSB_TXCSR, csr); //added by http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=bce257ccac7aa4e946f5c07ee37ba3b0fb596707 -SP
 	} else { /* Rx */
 		dprintk("Rx channel teardown, cppi_ch = %p\n", cppi_ch);
 
@@ -1057,15 +1071,17 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		csr  = musb_readw(epio, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_RXCSR, csr);
+		musb_writew(epio, MUSB_RXCSR, csr); //added by http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=bce257ccac7aa4e946f5c07ee37ba3b0fb596707 -SP
 
 		/* Issue CPPI FIFO teardown for Rx channel */
 		td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
+		pr_debug("td_reg before teardown: %x, | %x = %x    @%p+%x=%p\n", td_reg,  USB_RX_TDOWN_MASK(ep_num), td_reg | USB_RX_TDOWN_MASK(ep_num), reg_base, USB_TEARDOWN_REG, reg_base + USB_TEARDOWN_REG);
 		td_reg |= USB_RX_TDOWN_MASK(ep_num);
 		musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
 
 		/* Tear down Rx DMA channel */
 		usb_rx_ch_teardown(cppi_ch);
-
+		pr_debug("usb_rx_ch_teardown complete\n");
 		/*
 		 * NOTE: docs don't guarantee any of this works...  we expect
 		 * that if the USB core stops telling the CPPI core to pull
@@ -1092,7 +1108,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 
 		udelay(50);
 	}
-
+	pr_debug("teardown started\n");
 	/*
 	 * There might be PDs in the Rx/Tx source queue that were not consumed
 	 * by the DMA controller -- they need to be recycled properly.
@@ -1208,7 +1224,16 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 			cppi41_next_tx_segment(tx_ch);
 		else if (tx_ch->channel.actual_len >= tx_ch->length) {
 			tx_ch->channel.status = MUSB_DMA_STATUS_FREE;
+                       /* from http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=757abbb2970661720a5faf117340fbae33435f6b -SP
+                        * We get Tx DMA completion interrupt even when
+                        * data is still in FIFO and not moved out to
+                        * USB bus. As we program the next request we
+                        * flush out and old data in FIFO which affects
+                        * USB functionality. So far, we have obsered
+                        * failure with iperf.
+                        */
 
+                        udelay(20);
 			/* Tx completion routine callback */
 			musb_dma_completion(cppi->musb, ep_num, 1);
 		}
