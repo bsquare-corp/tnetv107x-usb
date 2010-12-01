@@ -542,7 +542,7 @@ irqreturn_t test_isr(int irq, void *data)
 	printk("got IRQ %d\n", irq);
 	spin_lock_irqsave(&musb->lock, flags);
 	cppi41_completion(data, 0x03, 0x03);
-	musb_writel(musb->ctrl_base, USB_END_OF_INTR_REG, 0);
+//	musb_writel(musb->ctrl_base, USB_END_OF_INTR_REG, 0);
 	spin_unlock_irqrestore(&musb->lock, flags);
 	return IRQ_HANDLED;
 }
@@ -729,7 +729,7 @@ static const u16 rx_comp_q[] = { 94, 95 };
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
 //        .ep_dma_ch      = { 0, 1, 2, 3 },
-        .ep_dma_ch      = {15,16,17,18 }, //just a test -SP
+        .ep_dma_ch      = {15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 },
         .q_mgr          = 0,
         .num_tx_comp_q  = 2,
         .num_rx_comp_q  = 2,
