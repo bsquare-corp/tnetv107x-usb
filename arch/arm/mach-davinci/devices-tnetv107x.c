@@ -533,7 +533,7 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 EXPORT_SYMBOL(cppi41_dma_block);
 
 /* Queues 0 to 27 are pre-assigned, others are spare */
-static const u32 assigned_queues[] = { 0x0fffffff, 0 };
+static const u32 assigned_queues[] = { 0xffffffff, 0xffffffff, 0x0fffffff };
 
 /* Queue manager information */
 const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
@@ -565,18 +565,18 @@ int __init tnetv107x_cppi41_init(void)
 	void *ptr;
 	int ret;
 	pr_debug("initialising cppi41\n");
-	dma_alloc_coherent(NULL, 0x1000,
-                                 &ptr,
-                                 GFP_KERNEL | GFP_DMA);
+//	dma_alloc_coherent(NULL, 0x1FFF,
+  //                               &ptr,
+    //                             GFP_KERNEL | GFP_DMA);
 
-	ret = cppi41_queue_mgr_init(0, ptr, 0x1000);
+	ret = cppi41_queue_mgr_init(0, NULL, 0);
 	if (ret) {
 		pr_warning("%s: queue manager initialization failed: %d\n",
 			   __func__, ret);
 		return ret;
 	}
 
-	ret = cppi41_dma_ctrlr_init(0, 0, 5); // 0 not 30
+	ret = cppi41_dma_ctrlr_init(0, 0, 9); // 0 not 30
 	if (ret) {
 		pr_warning("%s: DMA controller initialization failed: %d\n",
 			   __func__, ret);
