@@ -781,8 +781,8 @@ unsigned long cppi41_queue_pop(const struct cppi41_queue_obj *queue_obj)
 {
 	u32 val = __raw_readl(queue_obj->base_addr + QMGR_QUEUE_REG_D(0));
 
-//	pr_debug("Popping value %x from queue @ %p\n",  //FIXME -SP
-//		 val, queue_obj->base_addr);
+	pr_debug("Popping value %x from queue @ %p\n",  //FIXME -SP
+		 val, queue_obj->base_addr);
 
 	return val & QMGR_QUEUE_DESC_PTR_MASK;
 }

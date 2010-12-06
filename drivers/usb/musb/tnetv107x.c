@@ -412,7 +412,6 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 		musb->int_tx =
 			(epintr & TX_INTR_MASK) >> USB_INTR_TX_SHIFT;
 	}
-//	cppi41_completion(musb, 92+93+94+95, 92+93+94+95);
 	/* Get usb core interrupts */
 	usbintr = musb_readl(reg_base, CORE_INTR_SRC_MASKED_REG);
 	if (!usbintr && !epintr) {
