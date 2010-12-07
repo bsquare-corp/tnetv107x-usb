@@ -225,23 +225,7 @@ int __init cppi41_dma_sched_init(u8 dma_num, const u8 *sched_tbl, u16 tbl_size)
 	/* Initialize the DMA scheduler. */
 	dma_block = &cppi41_dma_block[dma_num];
 	num_reg = (tbl_size + 3) / 4;
-	 __raw_writel(0x8f0f8000, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(0));
-	 __raw_writel(0x90108101, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(1));
-	 __raw_writel(0x91118202, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(2));
-	 __raw_writel(0x92128303, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(3));
-	 __raw_writel(0x93138404, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(4));
-	 __raw_writel(0x94148505, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(5));
-	 __raw_writel(0x95158606, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(6));
-	 __raw_writel(0x96168707, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(7));
-	 __raw_writel(0x97178808, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(8));
-	 __raw_writel(0x98188909, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(9));
-	 __raw_writel(0x99198a0a, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(10));
-	 __raw_writel(0x9a1a8b0b, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(11));
-	 __raw_writel(0x9b1b8c0c, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(12));
-	 __raw_writel(0x9c1c8d0d, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(13));
-	 __raw_writel(0x9d1d8e0e, dma_block->sched_table_base + DMA_SCHED_TABLE_WORD_REG(14));
-
-/*	for (k = i = 0; i < num_reg; i++) {
+	for (k = i = 0; i < num_reg; i++) {
 		for (val = j = 0; j < 4; j++, k++) {
 			val >>= 8;
 			if (k < tbl_size)
@@ -253,7 +237,7 @@ int __init cppi41_dma_sched_init(u8 dma_num, const u8 *sched_tbl, u16 tbl_size)
 			 dma_block->sched_table_base +
 			 DMA_SCHED_TABLE_WORD_REG(i), val);
 	}
-*/
+
 	__raw_writel(60 << DMA_SCHED_LAST_ENTRY_SHIFT |
 		     DMA_SCHED_ENABLE_MASK,
 		     dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG);
