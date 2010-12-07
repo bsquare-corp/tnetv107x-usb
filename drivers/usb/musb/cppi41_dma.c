@@ -309,7 +309,8 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
 
 	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
+	musb_writel(reg_base, USB_TX_MODE_REG, 0);
+	musb_writel(reg_base, USB_RX_MODE_REG, 0);
 
 	//kthread_create(cppi_testthread, cppi->musb, "cppi_testthread");
 	//queue_delayed_work(create_workqueue("cppi_test"), &cppi_test, 100);
@@ -367,7 +368,8 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
 
 	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
+	musb_writel(reg_base, USB_TX_MODE_REG, 0);
+	musb_writel(reg_base, USB_RX_MODE_REG, 0);
 
 	return 1;
 }
@@ -515,9 +517,8 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 	if (mode != cppi_ch->dma_mode) {
 		struct cppi41 *cppi = cppi_ch->channel.private_data;
 		void __iomem *reg_base = cppi->musb->ctrl_base;
-		u32 reg_val = musb_readl(reg_base, USB_MODE_REG);
+		u32 reg_val = musb_readl(reg_base, cppi_ch->transmit ? USB_TX_MODE_REG : USB_RX_MODE_REG);
 		u8 ep_num = cppi_ch->ch_num + 1;
-		pr_debug("switching channel %d (ep%d) to mode %u. using reg %p+%x (%p)\n", cppi_ch->ch_num, ep_num, mode, reg_base, USB_MODE_REG, reg_base + USB_MODE_REG);
 		if (cppi_ch->transmit) {
 			reg_val &= ~USB_TX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_TX_MODE_SHIFT(ep_num);
@@ -525,7 +526,8 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 			reg_val &= ~USB_RX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_RX_MODE_SHIFT(ep_num);
 		}
-		musb_writel(reg_base, USB_MODE_REG, reg_val);
+		pr_debug("switching channel %d (ep%d) to mode %u @ %p. reg_val: %x\n", cppi_ch->ch_num, ep_num, mode, reg_base + (cppi_ch->transmit ? USB_TX_MODE_REG : USB_RX_MODE_REG), reg_val);
+		musb_writel(reg_base, cppi_ch->transmit ? USB_TX_MODE_REG : USB_RX_MODE_REG, reg_val);
 		cppi_ch->dma_mode = mode;
 	}
 }
@@ -564,14 +566,14 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 	 * transfer in one PD and one IRQ.  The only time we would NOT want
 	 * to use it is when the hardware constraints prevent it...
 	 */
-//	if ((pkt_size & 0x3f) == 0 && length > pkt_size) {
-//		num_pds  = 1;
-//		pkt_size = length;
-//		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);
-//	} else {
+	if ((pkt_size & 0x3f) == 0 && length > pkt_size) {
+		num_pds  = 1;
+		pkt_size = length;
+		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);
+	} else {
 		num_pds  = (length + pkt_size - 1) / pkt_size;
 		cppi41_mode_update(tx_ch, USB_TRANSPARENT_MODE);
-//	}
+	}
 
 	/*
 	 * If length of transmit buffer is 0 or a multiple of the endpoint size,
@@ -635,10 +637,9 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 		void __iomem *reg_base = cppi->musb->ctrl_base;
 		u32 reg_val = musb_readl(reg_base, USB_AUTOREQ_REG);
 		u8 ep_num = rx_ch->ch_num + 1;
-
 		reg_val &= ~USB_RX_AUTOREQ_MASK(ep_num);
 		reg_val |= autoreq << USB_RX_AUTOREQ_SHIFT(ep_num);
-
+		pr_debug("setting autoreq for ep %d to %d @ %p. reg_val: %x\n", ep_num, autoreq, reg_base + USB_AUTOREQ_REG, reg_val);
 		musb_writel(reg_base, USB_AUTOREQ_REG, reg_val);
 		rx_ch->autoreq = autoreq;
 	}
@@ -649,7 +650,7 @@ static void cppi41_set_ep_size(struct cppi41_channel *rx_ch, u32 pkt_size)
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 	void __iomem *reg_base = cppi->musb->ctrl_base;
 	u8 ep_num = rx_ch->ch_num + 1;
-
+	pr_debug("setting RNDIS_EP_SIZE for ep %d to %d @ %p\n", ep_num, pkt_size, reg_base + USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num));
 	musb_writel(reg_base, USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num), pkt_size);
 }
 
@@ -733,7 +734,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * Rx can use the generic RNDIS mode where we can probably fit this
 	 * transfer in one PD and one IRQ (or two with a short packet).
 	 */
-/*	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
+	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
 		printk("A\n");
 		cppi41_mode_update(rx_ch, USB_GENERIC_RNDIS_MODE);
 		cppi41_autoreq_update(rx_ch, USB_AUTOREQ_ALL_BUT_EOP);
@@ -744,11 +745,11 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 			pkt_size = 0x10000;
 		cppi41_set_ep_size(rx_ch, pkt_size);
 	} else {
-*/
+
 		printk("B\n");
 		cppi41_mode_update(rx_ch, USB_TRANSPARENT_MODE);
 		cppi41_autoreq_update(rx_ch, USB_NO_AUTOREQ);
-//	}
+	}
 
 	DBG(4, "RX DMA%u, %s, maxpkt %u, addr %#x, rec'd %u/%u\n",
 	    rx_ch->ch_num, rx_ch->dma_mode ? "accelerated" : "transparent",
