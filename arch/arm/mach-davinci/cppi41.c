@@ -60,12 +60,6 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 {
 	void __iomem *q_mgr_regs;
 	void *ptr;
-#define TMP(A) printk(#A " = %p \n", A)
-
-        TMP(cppi41_queue_mgr[0].q_mgr_rgn_base);
-        TMP(cppi41_queue_mgr[0].desc_mem_rgn_base);
-        TMP(cppi41_queue_mgr[0].q_mgmt_rgn_base);
-        TMP(cppi41_queue_mgr[0].q_stat_rgn_base);
 
 	if (q_mgr >= cppi41_num_queue_mgr)
 		return -EINVAL;
@@ -127,14 +121,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 	    q_mgr >= cppi41_num_queue_mgr)
 		return -EINVAL;
 
-	error = cppi41_queue_alloc(CPPI41_FREE_DESC_QUEUE |
-				   CPPI41_UNASSIGNED_QUEUE, q_mgr, &q_num);
-	if (error) {
-		pr_err("ERROR: %s: Unable to allocate teardown descriptor "
-		       "queue.\n", __func__);
-		return error;
-	}
-	q_num = 30; // FIXME: hack, probably doesn't even work - SP
+	q_num = 30;
 	pr_debug("Teardown descriptor queue %d in queue manager 0 allocated\n",
 		 q_num);
 
@@ -241,9 +228,6 @@ int __init cppi41_dma_sched_init(u8 dma_num, const u8 *sched_tbl, u16 tbl_size)
 	__raw_writel(60 << DMA_SCHED_LAST_ENTRY_SHIFT |
 		     DMA_SCHED_ENABLE_MASK,
 		     dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG);
-//	__raw_writel((tbl_size - 1) << DMA_SCHED_LAST_ENTRY_SHIFT |
-//		     DMA_SCHED_ENABLE_MASK,
-//		     dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG);
 	pr_debug("DMA scheduler control @ %p, value: %x\n",
 		 dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG,
 		 __raw_readl(dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG));
@@ -336,17 +320,14 @@ EXPORT_SYMBOL(cppi41_mem_rgn_free);
 int cppi41_tx_ch_init(struct cppi41_dma_ch_obj *tx_ch_obj,
 		      u8 dma_num, u8 ch_num)
 {
-	printk("AAA ======= dma %d   ch %d \n", dma_num, ch_num);
 	if (dma_num >= cppi41_num_dma_block ||
 	    ch_num  >= cppi41_dma_block[dma_num].num_tx_ch){ 
-		printk("BAD\n");
 		return -EINVAL;}
 
 	/* Populate the channel object structure */
 	tx_ch_obj->base_addr  = cppi41_dma_block[dma_num].ch_ctrl_stat_base +
 				DMA_CH_TX_GLOBAL_CFG_REG(ch_num);
 	tx_ch_obj->global_cfg = __raw_readl(tx_ch_obj->base_addr);
-	printk("good\n");
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_tx_ch_init);
@@ -610,7 +591,6 @@ static int alloc_queue(u32 *allocated, const u32 *excluded, unsigned start,
 {
 	u32 bit, mask = 0;
 	int index = -1;
-	pr_debug("starting alloc_queue with allocated: %p, allocated[0] = %x\n", allocated, allocated[index]);
 	/*
 	 * We're starting the loop as if we've just wrapped around 32 bits
 	 * in order to save on preloading the bitmasks.
@@ -641,7 +621,6 @@ static int alloc_queue(u32 *allocated, const u32 *excluded, unsigned start,
 		 */
 		if (!(mask & bit)) {
 			allocated[index] |= bit;
-			pr_debug("alloc_queue returning %d. bit: %x, allocated: %p, allocated[%d]: %x\n", start, bit, allocated, index, allocated[index]);
 			return start;
 		}
 	}
@@ -717,7 +696,6 @@ int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 
 	queue_obj->base_addr = cppi41_queue_mgr[q_mgr].q_mgmt_rgn_base +
 			       QMGR_QUEUE_STATUS_REG_A(q_num);
-	pr_debug("cppi: successfully initialised q_num %d\n", q_num);
 
 	return 0;
 }
@@ -736,7 +714,7 @@ void cppi41_queue_push(const struct cppi41_queue_obj *queue_obj, u32 desc_addr,
 	 * TODO: Can't think of a reason why a queue to head may be required.
 	 * If it is, the API may have to be extended.
 	 */
-#if 0 //FIXME was 0 - SP
+#if 0
 	/*
 	 * Also, can't understand why packet size is required to queue up a
 	 * descriptor. The spec says packet size *must* be written prior to
@@ -765,7 +743,7 @@ unsigned long cppi41_queue_pop(const struct cppi41_queue_obj *queue_obj)
 {
 	u32 val = __raw_readl(queue_obj->base_addr + QMGR_QUEUE_REG_D(0));
 
-	pr_debug("Popping value %x from queue @ %p\n",  //FIXME -SP
+	pr_debug("Popping value %x from queue @ %p\n",
 		 val, queue_obj->base_addr);
 
 	return val & QMGR_QUEUE_DESC_PTR_MASK;
