@@ -519,21 +519,11 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 		.tx_ch_info		= tx_ch_info
 	}
 
-/*	[0] = { // INTENTIONALLY WRONG
-		.global_ctrl_base	= 0xfee21000,
-		.ch_ctrl_stat_base	= 0xfee21800,
-		.sched_ctrl_base	= 0xfee22000,
-		.sched_table_base	= 0xfee22800,
-		.num_tx_ch		= 4,
-		.num_rx_ch		= 4,
-		.tx_ch_info		= tx_ch_info
-	}
-*/
 };
 EXPORT_SYMBOL(cppi41_dma_block);
 
 /* Queues 0 to 27 are pre-assigned, others are spare */
-static const u32 assigned_queues[] = { 0xffffffff, 0xffffffff, 0x0fffffff };
+static const u32 assigned_queues[] = { 0x0fffffff };
 
 /* Queue manager information */
 const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
@@ -579,9 +569,6 @@ int __init tnetv107x_cppi41_init(void)
 	void *ptr;
 	int ret;
 	pr_debug("initialising cppi41\n");
-//	dma_alloc_coherent(NULL, 0x1FFF,
-  //                               &ptr,
-    //                             GFP_KERNEL | GFP_DMA);
 
 	ret = cppi41_queue_mgr_init(0, NULL, 0);
 	if (ret) {
@@ -590,7 +577,7 @@ int __init tnetv107x_cppi41_init(void)
 		return ret;
 	}
 
-	ret = cppi41_dma_ctrlr_init(0, 0, 9); // 0 not 30
+	ret = cppi41_dma_ctrlr_init(0, 0, 9);
 	if (ret) {
 		pr_warning("%s: DMA controller initialization failed: %d\n",
 			   __func__, ret);
@@ -674,7 +661,4 @@ void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 		lcd_device.dev.platform_data = info->lcd_config;
 		platform_device_register(&lcd_device);
 	}
-//#ifdef CONFIG_CPPI41
-//	tnetv107x_cppi41_init();
-//#endif
 }
