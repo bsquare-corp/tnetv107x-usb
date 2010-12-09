@@ -510,16 +510,24 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 }
 
 
-irqreturn_t test_isr(int irq, void *data)
+irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
 {
-	unsigned long flags;
-	struct musb *musb = data;
-	printk("got IRQ %d\n", irq);
-	spin_lock_irqsave(&musb->lock, flags);
-	cppi41_completion(data, 0x03, 0x03);
-//	musb_writel(musb->ctrl_base, USB_END_OF_INTR_REG, 0);
-	spin_unlock_irqrestore(&musb->lock, flags);
-	return IRQ_HANDLED;
+        unsigned long flags;
+        struct musb *musb = data;
+	u32 pend2;
+
+        spin_lock_irqsave(&musb->lock, flags);
+        pend2 = musb_readl(cppi41_queue_mgr[0].q_mgr_rgn_base,
+                         QMGR_QUEUE_PENDING_REG(2));
+        pr_debug("cppi interrupt pending: %x @ %p\n", pend2, cppi41_queue_mgr[0].q_mgr_rgn_base + QMGR_QUEUE_PENDING_REG(2));
+        if (pend2 & (0xf << 28)) {              /* queues 92 - 95 */
+                u32 tx = (pend2 >> 30) & 0x3;
+                u32 rx = (pend2 >> 28) & 0x3;
+                DBG(4, "CPPI 4.1 IRQ: Tx %x, Rx %x\n", tx, rx);
+                cppi41_completion(musb, tx, rx);
+        }
+        spin_unlock_irqrestore(&musb->lock, flags);
+        return IRQ_HANDLED;
 }
 
 
@@ -540,12 +548,11 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 	if (!musb->xceiv)
 		goto fail;
 	musb->mregs += MENTOR_CORE_OFFSET;
-	pr_debug("requesting IRQ 35\n");
-	if (request_irq( 35, test_isr, 0, "Leo_cppi41_cdma", musb))
+	if (request_irq( 35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb))
 	{
+		pr_debug("failed to get IRQ\n");
 		ret = -ENODEV;
 		goto fail;
-		pr_debug("failed to get IRQ\n");
 	}
 	clk_enable(musb->clock);
 	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
