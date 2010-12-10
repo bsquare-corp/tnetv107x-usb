@@ -17,7 +17,7 @@ ifeq ($(CONFIG_USB_MUSB_AM35X),y)
 	musb_hdrc-$(CONFIG_ARCH_OMAP3430)	+= am35x.o
 else
 	musb_hdrc-$(CONFIG_ARCH_OMAP3430)	+= omap2430.o
-
+endif
 
 
 ifeq ($(CONFIG_DEBUG_FS),y)
@@ -39,11 +39,9 @@ ifneq ($(CONFIG_MUSB_PIO_ONLY),y)
 
   ifeq ($(CONFIG_USB_INVENTRA_DMA),y)
     musb_hdrc-y			+= musbhsdma.o
-
   else
     ifeq ($(CONFIG_USB_TI_CPPI_DMA),y)
       musb_hdrc-y		+= cppi_dma.o
-
     else
       ifeq ($(CONFIG_USB_TUSB_OMAP_DMA),y)
 	musb_hdrc-y		+= tusb6010_omap.o
