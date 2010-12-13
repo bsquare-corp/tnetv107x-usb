@@ -484,25 +484,25 @@ static struct platform_device lcd_device = {
 
 #ifdef	CONFIG_CPPI41
 static const struct cppi41_tx_ch tx_ch_info[] = {
-	[15] = {
+	[0] = {
 		.port_num	= 1,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 62 }, { 0, 63 } }
+		.tx_queue	= { { 0, 62 }, { 0, 64 } }
 	},
-	[16] = {
+	[1] = {
 		.port_num	= 2,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 64 }, { 0, 65 } }
+		.tx_queue	= { { 0, 66 }, { 0, 68 } }
 	},
-	[17] = {
+	[2] = {
 		.port_num	= 3,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 66 }, { 0, 67 } }
+		.tx_queue	= { { 0, 70 }, { 0, 72 } }
 	},
-	[18] = {
+	[3] = {
 		.port_num	= 4,
 		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 68 }, { 0, 69 } }
+		.tx_queue	= { { 0, 74 }, { 0, 76 } }
 	}
 };
 
@@ -514,8 +514,8 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 		.ch_ctrl_stat_base	= IO_ADDRESS(BASE + 0x21800),
 		.sched_ctrl_base	= IO_ADDRESS(BASE + 0x22000),
 		.sched_table_base	= IO_ADDRESS(BASE + 0x22800),
-		.num_tx_ch		= 31,
-		.num_rx_ch		= 31,
+		.num_tx_ch		= 15,
+		.num_rx_ch		= 15,
 		.tx_ch_info		= tx_ch_info
 	}
 

@@ -319,16 +319,14 @@ EXPORT_SYMBOL(cppi41_mem_rgn_free);
 int cppi41_tx_ch_init(struct cppi41_dma_ch_obj *tx_ch_obj,
 		      u8 dma_num, u8 ch_num)
 {
-	printk("cppi41_tx_ch_init dma %d ch %d\n", dma_num, ch_num);
 	if (dma_num >= cppi41_num_dma_block ||
-	    ch_num  >= cppi41_dma_block[dma_num].num_tx_ch){ printk("BAD----\n");
-		return -EINVAL;}
+	    ch_num  >= cppi41_dma_block[dma_num].num_tx_ch)
+		return -EINVAL;
 
 	/* Populate the channel object structure */
 	tx_ch_obj->base_addr  = cppi41_dma_block[dma_num].ch_ctrl_stat_base +
 				DMA_CH_TX_GLOBAL_CFG_REG(ch_num);
 	tx_ch_obj->global_cfg = __raw_readl(tx_ch_obj->base_addr);
-	printk("good\n");
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_tx_ch_init);
@@ -659,12 +657,9 @@ EXPORT_SYMBOL(cppi41_queue_free);
  */
 int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 {
-	printk("q num %d, q mgr %d\n", q_num, q_mgr);
 	if (q_mgr >= cppi41_num_queue_mgr ||
-	    q_num >= cppi41_queue_mgr[q_mgr].num_queue){
-		printk("fail\n");
+	    q_num >= cppi41_queue_mgr[q_mgr].num_queue)
 		return -EINVAL;
-	}
 
 	queue_obj->base_addr = cppi41_queue_mgr[q_mgr].q_mgmt_rgn_base +
 			       QMGR_QUEUE_STATUS_REG_A(q_num);
