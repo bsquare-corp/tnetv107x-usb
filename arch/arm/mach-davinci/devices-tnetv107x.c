@@ -484,26 +484,81 @@ static struct platform_device lcd_device = {
 
 #ifdef	CONFIG_CPPI41
 static const struct cppi41_tx_ch tx_ch_info[] = {
-	[15] = {
-		.port_num	= 1,
-		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 62 }, { 0, 63 } }
-	},
-	[16] = {
-		.port_num	= 2,
-		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 64 }, { 0, 65 } }
-	},
-	[17] = {
-		.port_num	= 3,
-		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 66 }, { 0, 67 } }
-	},
-	[18] = {
-		.port_num	= 4,
-		.num_tx_queue	= 2,
-		.tx_queue	= { { 0, 68 }, { 0, 69 } }
-	}
+        [15] = {
+                .port_num       = 1,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 62 }, { 0, 63 } }
+        },
+        [16] = {
+                .port_num       = 2,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 64 }, { 0, 65 } }
+        },
+        [17] = {
+                .port_num       = 3,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 66 }, { 0, 67 } }
+        },
+        [18] = {
+                .port_num       = 4,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 68 }, { 0, 69 } }
+        },
+        [19] = {
+                .port_num       = 5,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 70 }, { 0, 71 } }
+        },
+        [20] = {
+                .port_num       = 6,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 72 }, { 0, 73 } }
+        },
+        [21] = {
+                .port_num       = 7,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 74 }, { 0, 75 } }
+        },
+        [22] = {
+                .port_num       = 8,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 76 }, { 0, 77 } }
+        },
+        [23] = {
+                .port_num       = 9,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 78 }, { 0, 79 } }
+        },
+        [24] = {
+                .port_num       = 10,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 80 }, { 0, 81 } }
+        },
+        [25] = {
+                .port_num       = 11,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 82 }, { 0, 83 } }
+        },
+        [26] = {
+                .port_num       = 12,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 84 }, { 0, 85 } }
+        },
+        [27] = {
+                .port_num       = 13,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 86 }, { 0, 87 } }
+        },
+        [28] = {
+                .port_num       = 14,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 88 }, { 0, 89 } }
+        },
+        [29] = {
+                .port_num       = 15,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 90 }, { 0, 91 } }
+        }
 };
 
 #define BASE 0x01e00000
