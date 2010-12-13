@@ -172,8 +172,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	unsigned long pd_addr;
 	int i;
 
-	tnetv107x_cppi41_init();
-
 	cppi = container_of(controller, struct cppi41, controller);
 
 	/*
@@ -253,7 +251,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 				     CPPI41_SRC_TAG_CH_NUM_SHIFT) |
 				    (tx_info->sub_ch_num <<
 				     CPPI41_SRC_TAG_SUB_CH_NUM_SHIFT);
-		pr_debug("USB EP%d -> CPPI channel %d (src_queue: %p, cppi_ch: %p)\n", i, usb_cppi41_info.ep_dma_ch[i], cppi_ch->src_queue, (void *)cppi_ch);
+		pr_debug("USB EP%d -> CPPI channel %d (cppi_ch: %p)\n", i, usb_cppi41_info.ep_dma_ch[i], (void *)cppi_ch);
 	}
 
 	/* Configure the Rx channels */
@@ -746,7 +744,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 
 	rx_ch->curr_offset += pkt_size;
 
-	pr_debug("prepared pd. orig_buf_ptr: %p, orig_buf_len: %d, ch_num: %d, ep_num: %d\n", hw_desc->orig_buf_ptr, hw_desc->orig_buf_len, curr_pd->ch_num, curr_pd->ep_num);
+	pr_debug("prepared pd. orig_buf_ptr: %x, orig_buf_len: %d, ch_num: %d, ep_num: %d\n", hw_desc->orig_buf_ptr, hw_desc->orig_buf_len, curr_pd->ch_num, curr_pd->ep_num);
 	/*
 	 * Push the free Rx packet descriptor
 	 * to the free descriptor/buffer queue.
