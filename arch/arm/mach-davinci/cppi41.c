@@ -67,14 +67,14 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 	q_mgr_regs = cppi41_queue_mgr[q_mgr].q_mgr_rgn_base;
 
 	__raw_writel(rgn0_base, q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG);
-	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
-		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
+//	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
+//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
+//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
 
 	__raw_writel(rgn0_size, q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG);
-	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
-		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
+//	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
+//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
+//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
 
 	ptr = dma_alloc_coherent(NULL, 0x40000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
@@ -88,9 +88,9 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 
 	__raw_writel(linking_ram[q_mgr].phys_addr,
 		     q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG);
-	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
-		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
+//	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
+//		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
+//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
 
 	ptr = kzalloc(BITS_TO_LONGS(cppi41_queue_mgr[q_mgr].num_queue),
 		      GFP_KERNEL);
@@ -152,7 +152,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		error = -ENOMEM;
 		goto free_queue;
 	}
-	pr_debug("Allocated teardown descriptors. phys: %p, virt: %p, size: %d\n", dma_teardown[dma_num].phys_addr, ptr, dma_teardown[dma_num].rgn_size);
+	pr_debug("Allocated teardown descriptors. phys: %x, virt: %p, size: %d\n", dma_teardown[dma_num].phys_addr, ptr, dma_teardown[dma_num].rgn_size);
 	dma_teardown[dma_num].virt_addr = ptr;
 
 	error = cppi41_mem_rgn_alloc(q_mgr, dma_teardown[dma_num].phys_addr, 5,
@@ -162,7 +162,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		       "region for teardown descriptors.\n", __func__);
 		goto free_mem;
 	}
-	pr_debug("allocated queue manager memory region for teardown descriptors. mem_rgn: %p, num_order: %d\n", dma_teardown[dma_num].mem_rgn, num_order);
+	pr_debug("allocated queue manager memory region for teardown descriptors. mem_rgn: %x, num_order: %d\n", dma_teardown[dma_num].mem_rgn, num_order);
 	error = cppi41_queue_init(&dma_teardown[dma_num].queue_obj, 0, q_num);
 	if (error) {
 		pr_err("ERROR: %s: Unable to initialize teardown free "
@@ -263,7 +263,6 @@ int cppi41_mem_rgn_alloc(u8 q_mgr, dma_addr_t rgn_addr, u8 size_order,
 	next_desc_index[q_mgr] = index + num_desc;
 
 	desc_mem_regs = cppi41_queue_mgr[q_mgr].desc_mem_rgn_base;
-	pr_debug("q_mgr: %d, rgn_addr: %p, desc_mem_regs: %p, rng: %d QMGR_MEM_RGN_BASE_REG(rgn): %X\n", q_mgr, rgn_addr, desc_mem_regs, rgn, QMGR_MEM_RGN_BASE_REG(rgn));
 	/* Write the base register */
 	__raw_writel(rgn_addr, desc_mem_regs + QMGR_MEM_RGN_BASE_REG(rgn));
 	pr_debug("Descriptor region base @ %p, value: %x\n",
@@ -687,7 +686,6 @@ EXPORT_SYMBOL(cppi41_queue_free);
  */
 int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 {
-	printk("queue init mgr %d, q %d\n", q_mgr, q_num);
 	if (q_mgr >= cppi41_num_queue_mgr ||
 	    q_num >= cppi41_queue_mgr[q_mgr].num_queue) {
 		printk("cppi: failed to initialise q_num %d\n", q_num);
@@ -730,7 +728,7 @@ void cppi41_queue_push(const struct cppi41_queue_obj *queue_obj, u32 desc_addr,
 	       QMGR_QUEUE_DESC_SIZE_MASK) |
 	      (desc_addr & QMGR_QUEUE_DESC_PTR_MASK);
 
-	pr_debug("Pushing value %x (desc_size %d, desc_addr %p) to queue @ %p\n", val, desc_size, desc_addr, queue_obj->base_addr);
+	pr_debug("Pushing value %x (desc_size %d, desc_addr %x) to queue @ %p\n", val, desc_size, desc_addr, queue_obj->base_addr);
 
 	__raw_writel(val, queue_obj->base_addr + QMGR_QUEUE_REG_D(0));
 }
@@ -765,7 +763,7 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 			break;
 
 	if (dma_num == cppi41_num_dma_block) {
-		pr_debug("cppi41_get_teardown_info failed: addr (%p) invalid\n", addr);
+		pr_debug("cppi41_get_teardown_info failed: addr (%x) invalid\n", addr);
 		return -EINVAL;
 	}
 
