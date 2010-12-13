@@ -266,6 +266,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	}
 
 	/* Configure the Rx channels */
+	printk("RX array size is %d\n", ARRAY_SIZE(cppi->rx_cppi_ch));
 	for (i = 0, cppi_ch = cppi->rx_cppi_ch;
 	     i < ARRAY_SIZE(cppi->rx_cppi_ch); ++i, ++cppi_ch) {
 		memset(cppi_ch, 0, sizeof(struct cppi41_channel));
@@ -362,6 +363,7 @@ static int cppi41_controller_stop(struct dma_controller *controller)
  * endpoint, so allocating (and deallocating) is mostly a way to notice bad
  * housekeeping on the software side.  We assume the IRQs are always active.
  */
+
 static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 						*controller,
 						struct musb_hw_ep *ep, u8 is_tx)
@@ -374,6 +376,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 
 	/* Remember, ep_num: 1 .. Max_EP, and CPPI ch_num: 0 .. Max_EP - 1 */
 	ch_num = ep_num - 1;
+
 
 	if (ep_num > USB_CPPI41_NUM_CH) {
 		DBG(1, "No %cx DMA channel for EP%d\n",
@@ -699,6 +702,10 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 	struct usb_pkt_desc *curr_pd;
 	struct cppi41_host_pkt_desc *hw_desc;
+
+	if (rx_ch == NULL)
+		return 0;
+
 	u32 length = rx_ch->length - rx_ch->curr_offset;
 	u32 pkt_size = rx_ch->pkt_size;
 
@@ -726,13 +733,14 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	    rx_ch->curr_offset, rx_ch->length);
 
 	/* Get Rx packet descriptor from the free pool */
+	if (cppi == NULL)
+		return 0;
 	curr_pd = usb_get_free_pd(cppi);
 	if (curr_pd == NULL) {
 		/* Shouldn't ever happen! */
 		ERR("No Rx PDs\n");
 		return 0;
 	}
-
 	/*
 	 * HCD arranged ReqPkt for the first packet.
 	 * We arrange it for all but the last one.
