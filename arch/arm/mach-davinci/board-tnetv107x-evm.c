@@ -509,10 +509,6 @@ static __init void tnetv107x_evm_board_init(void)
 
 	spi_register_board_info(spi_info, ARRAY_SIZE(spi_info));
 	i2c_register_board_info(0, i2c_info, ARRAY_SIZE(i2c_info));
-//	platform_device_register(&tps6524x_device);
-//	platform_device_register(&tps6116x_device);
-
-//	tnetv107x_register_usb20();
 }
 
 static int __init tnetv107x_evm_late_init(void)

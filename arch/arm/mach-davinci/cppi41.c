@@ -72,9 +72,9 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
 
 	__raw_writel(rgn0_size, q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG);
-	pr_debug("Linking RAM region 0 size @ %p, value: %x (wrote %x)\n",
+	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
 		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG), rgn0_size);
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
 
 	ptr = dma_alloc_coherent(NULL, 0x40000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
@@ -88,9 +88,9 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 
 	__raw_writel(linking_ram[q_mgr].phys_addr,
 		     q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG);
-	pr_debug("Linking RAM region 1 base @ %p, value: %x (size: %d)\n",
+	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
 		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
-		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG), 0x40000 - rgn0_size * 4);
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
 
 	ptr = kzalloc(BITS_TO_LONGS(cppi41_queue_mgr[q_mgr].num_queue),
 		      GFP_KERNEL);
@@ -321,8 +321,8 @@ int cppi41_tx_ch_init(struct cppi41_dma_ch_obj *tx_ch_obj,
 		      u8 dma_num, u8 ch_num)
 {
 	if (dma_num >= cppi41_num_dma_block ||
-	    ch_num  >= cppi41_dma_block[dma_num].num_tx_ch){ 
-		return -EINVAL;}
+	    ch_num  >= cppi41_dma_block[dma_num].num_tx_ch)
+		return -EINVAL;
 
 	/* Populate the channel object structure */
 	tx_ch_obj->base_addr  = cppi41_dma_block[dma_num].ch_ctrl_stat_base +
@@ -790,7 +790,6 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 
 	cppi41_queue_push(&dma_teardown[dma_num].queue_obj, addr,
 			  sizeof(struct cppi41_teardown_desc), 0);
-	pr_debug("cppi41_get_teardown_info succeeded\n");
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_get_teardown_info);

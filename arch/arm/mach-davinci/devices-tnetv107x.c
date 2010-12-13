@@ -523,7 +523,7 @@ const struct cppi41_dma_block cppi41_dma_block[1] = {
 EXPORT_SYMBOL(cppi41_dma_block);
 
 /* Queues 0 to 27 are pre-assigned, others are spare */
-static const u32 assigned_queues[] = { 0x0fffffff };
+static const u32 assigned_queues[] = { 0x0fffffff, 0 };
 
 /* Queue manager information */
 const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {

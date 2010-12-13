@@ -26,9 +26,6 @@
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
 
-#include <linux/kthread.h>
-#include <linux/workqueue.h>
-
 #include <mach/cppi41.h>
 #include <mach/tnetv107x.h>
 
@@ -208,12 +205,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		goto free_pds;
 	}
 
-	/* Allocate the teardown completion queue */
-	if (cppi41_queue_alloc(CPPI41_UNASSIGNED_QUEUE,
-			       0, &cppi->teardownQNum)) {
-		DBG(1, "ERROR: teardown completion queue allocation failed\n");
-		goto free_mem_rgn;
-	}
 	cppi->teardownQNum = 94;
 	DBG(4, "Allocated teardown completion queue %d in queue manager 0\n",
 	    cppi->teardownQNum);
@@ -266,7 +257,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	}
 
 	/* Configure the Rx channels */
-	printk("RX array size is %d\n", ARRAY_SIZE(cppi->rx_cppi_ch));
 	for (i = 0, cppi_ch = cppi->rx_cppi_ch;
 	     i < ARRAY_SIZE(cppi->rx_cppi_ch); ++i, ++cppi_ch) {
 		memset(cppi_ch, 0, sizeof(struct cppi41_channel));
@@ -290,10 +280,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	/* Disable the CDC/RNDIS modes */
 	musb_writel(reg_base, USB_TX_MODE_REG, 0);
 	musb_writel(reg_base, USB_RX_MODE_REG, 0);
-
-	//kthread_create(cppi_testthread, cppi->musb, "cppi_testthread");
-	//queue_delayed_work(create_workqueue("cppi_test"), &cppi_test, 100);
-
 
 	return 1;
 
@@ -617,7 +603,6 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 		u8 ep_num = rx_ch->ch_num + 1;
 		reg_val &= ~USB_RX_AUTOREQ_MASK(ep_num);
 		reg_val |= autoreq << USB_RX_AUTOREQ_SHIFT(ep_num);
-		pr_debug("setting autoreq for ep %d to %d @ %p. reg_val: %x\n", ep_num, autoreq, reg_base + USB_AUTOREQ_REG, reg_val);
 		musb_writel(reg_base, USB_AUTOREQ_REG, reg_val);
 		rx_ch->autoreq = autoreq;
 	}
@@ -628,7 +613,6 @@ static void cppi41_set_ep_size(struct cppi41_channel *rx_ch, u32 pkt_size)
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 	void __iomem *reg_base = cppi->musb->ctrl_base;
 	u8 ep_num = rx_ch->ch_num + 1;
-	pr_debug("setting RNDIS_EP_SIZE for ep %d to %d @ %p\n", ep_num, pkt_size, reg_base + USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num));
 	musb_writel(reg_base, USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num), pkt_size);
 }
 
@@ -702,9 +686,6 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 	struct usb_pkt_desc *curr_pd;
 	struct cppi41_host_pkt_desc *hw_desc;
-
-	if (rx_ch == NULL)
-		return 0;
 
 	u32 length = rx_ch->length - rx_ch->curr_offset;
 	u32 pkt_size = rx_ch->pkt_size;
@@ -925,7 +906,6 @@ static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 		unsigned long pd_addr = 0;
 		/* Wait for a descriptor to be queued and pop it... */
 		do {
-			udelay(2000);
 			pd_addr = cppi41_queue_pop(&cppi->queue_obj);
 		} while (!pd_addr);
 
