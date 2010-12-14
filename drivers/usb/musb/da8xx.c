@@ -82,7 +82,6 @@
 
 #define A_WAIT_BCON_TIMEOUT	1100		/* in ms */
 
-#define CFGCHIP2		DA8XX_SYSCFG_VIRT(DA8XX_CFGCHIP2_REG)
 
 #ifdef CONFIG_USB_TI_CPPI41_DMA
 
@@ -370,8 +369,8 @@ static irqreturn_t da8xx_interrupt(int irq, void *hci)
 	musb_writel(reg_base, USB_INTR_SRC_CLEAR_REG, status);
 	DBG(4, "USB IRQ %08x\n", status);
 
-	musb->int_rx = (status & DA8XX_RX_INTR_MASK) >> USB_INTR_RX_SHIFT;
-	musb->int_tx = (status & DA8XX_TX_INTR_MASK) >> USB_INTR_TX_SHIFT;
+	musb->int_rx = (status & DA8XX_INTR_RX_MASK) >> USB_INTR_RX_SHIFT;
+	musb->int_tx = (status & DA8XX_INTR_TX_MASK) >> USB_INTR_TX_SHIFT;
 	musb->int_usb = (status & USB_INTR_USB_MASK) >> USB_INTR_USB_SHIFT;
 
 	/*

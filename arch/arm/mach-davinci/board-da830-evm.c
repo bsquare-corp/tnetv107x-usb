@@ -590,6 +590,7 @@ static __init void da830_evm_init(void)
 	ret = da8xx_register_rtc();
 	if (ret)
 		pr_warning("da830_evm_init: rtc setup failed: %d\n", ret);
+	da8xx_cppi41_init();
 }
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE

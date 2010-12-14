@@ -76,7 +76,7 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 //		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
 //		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
 
-	ptr = dma_alloc_coherent(NULL, 0x40000 - rgn0_size * 4,
+	ptr = dma_alloc_coherent(NULL, 0x10000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
 				 GFP_KERNEL | GFP_DMA);
 	if (ptr == NULL) {
@@ -225,7 +225,7 @@ int __init cppi41_dma_sched_init(u8 dma_num, const u8 *sched_tbl, u16 tbl_size)
 			 DMA_SCHED_TABLE_WORD_REG(i), val);
 	}
 
-	__raw_writel(60 << DMA_SCHED_LAST_ENTRY_SHIFT |
+	__raw_writel((tbl_size - 1) << DMA_SCHED_LAST_ENTRY_SHIFT |
 		     DMA_SCHED_ENABLE_MASK,
 		     dma_block->sched_ctrl_base + DMA_SCHED_CTRL_REG);
 	pr_debug("DMA scheduler control @ %p, value: %x\n",

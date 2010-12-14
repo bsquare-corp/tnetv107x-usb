@@ -202,8 +202,17 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		    "failed.\n");
 		goto free_pds;
 	}
+#ifdef CONFIG_MACH_TNETV107X
+        cppi->teardownQNum = 94;
+#else
+        /* Allocate the teardown completion queue */
+        if (cppi41_queue_alloc(CPPI41_UNASSIGNED_QUEUE,
+                               0, &cppi->teardownQNum)) {
+                DBG(1, "ERROR: teardown completion queue allocation failed\n");
+                goto free_mem_rgn;
+        }
+#endif
 
-	cppi->teardownQNum = 94;
 	DBG(4, "Allocated teardown completion queue %d in queue manager 0\n",
 	    cppi->teardownQNum);
 

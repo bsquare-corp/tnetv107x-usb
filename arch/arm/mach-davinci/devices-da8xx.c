@@ -25,6 +25,7 @@
 #include "clock.h"
 
 #define DA8XX_TPCC_BASE			0x01c00000
+#define DA8XX_USB0_BASE		        0x01e00000
 #define DA850_MMCSD1_BASE		0x01e1b000
 #define DA850_TPCC1_BASE		0x01e30000
 #define DA8XX_TPTC0_BASE		0x01c08000
@@ -721,7 +722,8 @@ int __init da8xx_register_cpuidle(void)
 }
 
 #ifdef	CONFIG_CPPI41
-
+#define DA8XX_USB0_BASE 0x01c64000
+//#define DA8XX_USB0_BASE 0x01c00000
 static const struct cppi41_tx_ch tx_ch_info[] = {
 	[0] = {
 		.port_num	= 1,
