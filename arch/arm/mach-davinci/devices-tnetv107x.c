@@ -12,6 +12,8 @@
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+#define DEBUG
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -484,6 +486,81 @@ static struct platform_device lcd_device = {
 
 #ifdef	CONFIG_CPPI41
 static const struct cppi41_tx_ch tx_ch_info[] = {
+        [0] = {
+                .port_num       = 1,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 32 }, { 0, 33 } }
+        },
+        [1] = {
+                .port_num       = 2,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 34 }, { 0, 35 } }
+        },
+        [2] = {
+                .port_num       = 3,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 36 }, { 0, 37 } }
+        },
+        [3] = {
+                .port_num       = 4,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 38 }, { 0, 39 } }
+        },
+        [4] = {
+                .port_num       = 5,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 40 }, { 0, 41 } }
+        },
+        [5] = {
+                .port_num       = 6,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 42 }, { 0, 43 } }
+        },
+        [6] = {
+                .port_num       = 7,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 44 }, { 0, 45 } }
+        },
+        [7] = {
+                .port_num       = 8,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 46 }, { 0, 47 } }
+        },
+        [8] = {
+                .port_num       = 9,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 48 }, { 0, 49 } }
+        },
+        [9] = {
+                .port_num       = 10,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 50 }, { 0, 51 } }
+        },
+        [10] = {
+                .port_num       = 11,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 52 }, { 0, 53 } }
+        },
+        [11] = {
+                .port_num       = 12,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 54 }, { 0, 55 } }
+        },
+        [12] = {
+                .port_num       = 13,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 56 }, { 0, 57 } }
+        },
+        [13] = {
+                .port_num       = 14,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 58 }, { 0, 59 } }
+        },
+        [14] = {
+                .port_num       = 15,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 60 }, { 0, 61 } }
+        },
         [15] = {
                 .port_num       = 1,
                 .num_tx_queue   = 2,
@@ -554,11 +631,6 @@ static const struct cppi41_tx_ch tx_ch_info[] = {
                 .num_tx_queue   = 2,
                 .tx_queue       = { { 0, 88 }, { 0, 89 } }
         },
-        [29] = {
-                .port_num       = 15,
-                .num_tx_queue   = 2,
-                .tx_queue       = { { 0, 90 }, { 0, 91 } }
-        }
 };
 
 #define BASE 0x01e00000
@@ -623,7 +695,7 @@ int __init tnetv107x_cppi41_init(void)
 {
 	void *ptr;
 	int ret;
-	pr_debug("initialising cppi41\n");
+	printk("initialising cppi41\n");
 
 	ret = cppi41_queue_mgr_init(0, NULL, 0);
 	if (ret) {

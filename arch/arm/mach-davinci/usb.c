@@ -15,7 +15,9 @@
 
 #define DA8XX_USB0_BASE 	0x01e00000
 #define DA8XX_USB1_BASE 	0x01e25000
-#define TNETV107X_USB1_BASE	0x08120800
+//#define TNETV107X_USB1_BASE	0x08120800
+#define TNETV107X_USB1_BASE	0x08120000
+/* FIXME: changed to point to USB0 */
 
 #if defined(CONFIG_USB_MUSB_HDRC) || defined(CONFIG_USB_MUSB_HDRC_MODULE)
 
@@ -148,7 +150,7 @@ static struct resource tnetv107x_usb20_resources[] = {
 		.flags		= IORESOURCE_MEM,
 	},
 	{
-		.start		= IRQ_TNETV107X_USB1,
+		.start		= IRQ_TNETV107X_USB0,
 		.flags		= IORESOURCE_IRQ,
 	},
 
@@ -156,9 +158,9 @@ static struct resource tnetv107x_usb20_resources[] = {
 
 int __init tnetv107x_register_usb20(void)
 {
-	usb_data.clock  = "clk_usb1";
+	usb_data.clock  = "clk_usb0";
 	usb_data.power	= 500 / 2;
-	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
+	usb_dev.id = 0; /* tnetv has 2xmusb controllers */
 	usb_dev.resource = tnetv107x_usb20_resources;
 	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
 
