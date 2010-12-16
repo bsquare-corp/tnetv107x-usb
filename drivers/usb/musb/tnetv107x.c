@@ -534,7 +534,7 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 }
 
 
-#ifdef USB_TI_CPPI41_DMA
+#ifdef CONFIG_USB_TI_CPPI41_DMA
 irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
 {
         unsigned long flags;
@@ -554,7 +554,7 @@ irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
         spin_unlock_irqrestore(&musb->lock, flags);
         return IRQ_HANDLED;
 }
-#endif /* USB_TI_CPPI41_DMA */
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 
 
 
@@ -573,14 +573,14 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 	if (!musb->xceiv)
 		goto fail;
 	musb->mregs += MENTOR_CORE_OFFSET;
-#ifdef USB_TI_CPPI41_DMA
+#ifdef CONFIG_USB_TI_CPPI41_DMA
 	if (request_irq( 35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb))
 	{
 		pr_debug("failed to get IRQ\n");
 		ret = -ENODEV;
 		goto fail;
 	}
-#endif /* USB_TI_CPPI41_DMA */
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 	clk_enable(musb->clock);
 	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
 	/* Returns zero if e.g. not clocked */
