@@ -516,7 +516,7 @@ static int __init tnetv107x_evm_late_init(void)
 	platform_device_register(&backlight_device);
 	platform_device_register(&i2c_device);
 	tnetv107x_register_usb20();
-#ifdef CONFIGUSB_TI_CPPI41_DMA
+#ifdef CONFIG_USB_TI_CPPI41_DMA
         tnetv107x_cppi41_init();
 #endif /* CONFIG_USB_TI_CPPI_DMA */
 	return 0;
