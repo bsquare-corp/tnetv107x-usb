@@ -163,7 +163,8 @@ static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
 		musb->controller->platform_data;
 		struct tnetv107x_musb_data  *tnetv_bdata = usb_data->board_data;
 	int flags;
-
+	if (is_peripheral_active(musb))
+		return;
 	WARN_ON(is_on && is_peripheral_active(musb));
 
 	if (is_on)
@@ -189,10 +190,10 @@ static inline int phy_ctrl(int controller, int turn_on)
 	unsigned long flags;
 
 	/*sanity check arguments */
-	if (turn_on != (0 || 1))
+	if (turn_on != 0 && turn_on != 1)
 	    return -EINVAL;
 
-	if (controller != (0 || 1))
+	if (controller != 0 && controller != 1)
 	    return -EINVAL;
 
 	phyreset = ioremap(USB_PHY_RESET, 4);
@@ -534,7 +535,7 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 }
 
 
-#ifdef USB_TI_CPPI41_DMA
+#ifdef CONFIG_USB_TI_CPPI41_DMA
 irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
 {
         unsigned long flags;
@@ -546,15 +547,15 @@ irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
                          QMGR_QUEUE_PENDING_REG(2));
         pr_debug("cppi interrupt pending: %x @ %p\n", pend2, cppi41_queue_mgr[0].q_mgr_rgn_base + QMGR_QUEUE_PENDING_REG(2));
         if (pend2 & (0xf << 28)) {              /* queues 92 - 95 */
-                u32 tx = (pend2 >> 30) & 0x3;
-                u32 rx = (pend2 >> 28) & 0x3;
+                u32 rx = (pend2 >> 30) & 0x3;
+                u32 tx = (pend2 >> 28) & 0x3;
                 DBG(4, "CPPI 4.1 IRQ: Tx %x, Rx %x\n", tx, rx);
-                cppi41_completion(musb, tx, rx);
+                cppi41_completion(musb, rx, tx);
         }
         spin_unlock_irqrestore(&musb->lock, flags);
         return IRQ_HANDLED;
 }
-#endif /* USB_TI_CPPI41_DMA */
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 
 
 
@@ -573,14 +574,14 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 	if (!musb->xceiv)
 		goto fail;
 	musb->mregs += MENTOR_CORE_OFFSET;
-#ifdef USB_TI_CPPI41_DMA
+#ifdef CONFIG_USB_TI_CPPI41_DMA
 	if (request_irq( 35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb))
 	{
 		pr_debug("failed to get IRQ\n");
 		ret = -ENODEV;
 		goto fail;
 	}
-#endif /* USB_TI_CPPI41_DMA */
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 	clk_enable(musb->clock);
 	pr_debug("reg_base: %p, USB_REVISION_REG: %p, musb->mregs: %x\n", reg_base, USB_REVISION_REG, musb->mregs);
 	/* Returns zero if e.g. not clocked */
@@ -596,45 +597,49 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 
 	spin_lock_init(&ptnetv_musb_data->lock);
 
-	if (is_host_enabled(musb))
+	if (is_host_enabled(musb)) {
+		printk("enabling host mode things\n");
 		setup_timer(&ptnetv_musb_data->otg_workaround, otg_timer, (unsigned long) musb);
-
-	if(pdata->set_vbus != NULL) {
-		musb->board_set_vbus = pdata->set_vbus;
-	} else {
-		pdata->board_data = ptnetv_musb_data;
-		/* get the regulator */
-		ptnetv_musb_data->vbus_regulator =
-			regulator_get(musb->controller, "vbus");
-
-		if (WARN(IS_ERR(ptnetv_musb_data->vbus_regulator)
-			 , "Unable to obtain voltage regulator for USB;"))
-			goto fail2;
-
-		if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
-			/* the reg framework can leave regulators on during
-			   bootup, leading to unbalanced enable/disables */
-			regulator_enable(ptnetv_musb_data->vbus_regulator);
-			ptnetv_musb_data->vbus_state = 1;
+		if(pdata->set_vbus != NULL) {
+			musb->board_set_vbus = pdata->set_vbus;
 		} else {
-			ptnetv_musb_data->vbus_state = 0;
+			pdata->board_data = ptnetv_musb_data;
+			/* get the regulator */
+			ptnetv_musb_data->vbus_regulator =
+				regulator_get(musb->controller, "vbus");
+
+			if (WARN(IS_ERR(ptnetv_musb_data->vbus_regulator)
+				 , "Unable to obtain voltage regulator for USB;"))
+				goto fail2;
+
+			if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
+				/* the reg framework can leave regulators on during
+				   bootup, leading to unbalanced enable/disables */
+				regulator_enable(ptnetv_musb_data->vbus_regulator);
+				ptnetv_musb_data->vbus_state = 1;
+			} else {
+				ptnetv_musb_data->vbus_state = 0;
+			}
+
+			/* mA/2 -> uA */
+			power = (pdata->power * 2) * 1000;
+			if (IS_ERR(regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
+							       power, power)))
+				WARNING("Unable to set current limit %duA\n",power);
+
+			musb->board_set_vbus = tnetv107xevm_set_vbus;
 		}
-
-		/* mA/2 -> uA */
-		power = (pdata->power * 2) * 1000;
-		if (IS_ERR(regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
-						       power, power)))
-			WARNING("Unable to set current limit %duA\n",power);
-
+	} else /* don't need (or necessarily have) VBUS on device in peripheral mode */
 		musb->board_set_vbus = tnetv107xevm_set_vbus;
-	}
 
 	/* Reset the controller */
 	musb_writel(reg_base, USB_CTRL_REG, USB_SOFT_RESET_MASK);
 
 	/* Start the on-chip PHY and its PLL. */
-	if (phy_ctrl(pdev->id, 1) < 0)
+	if (phy_ctrl(pdev->id, 1) < 0) {
+		printk("phy_ctrl failed\n");
 		goto fail2;
+	}
 
 	musb->board_set_vbus(musb, 1);
 
@@ -736,7 +741,8 @@ static const u16 rx_comp_q[] = { 94, 95 };
 
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
-        .ep_dma_ch      = {15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 },
+//        .ep_dma_ch      = {15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 },
+	.ep_dma_ch      = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14},
         .q_mgr          = 0,
         .num_tx_comp_q  = 2,
         .num_rx_comp_q  = 2,
