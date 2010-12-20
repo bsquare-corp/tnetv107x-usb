@@ -35,6 +35,7 @@
 
 #include <mach/cppi41.h>
 
+
 static struct {
 	void *virt_addr;
 	dma_addr_t phys_addr;
@@ -67,14 +68,14 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 	q_mgr_regs = cppi41_queue_mgr[q_mgr].q_mgr_rgn_base;
 
 	__raw_writel(rgn0_base, q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG);
-//	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
+	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
 
 	__raw_writel(rgn0_size, q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG);
-//	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
+	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
 
 	ptr = dma_alloc_coherent(NULL, 0x10000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
@@ -88,9 +89,9 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 
 	__raw_writel(linking_ram[q_mgr].phys_addr,
 		     q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG);
-//	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
+	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
 
 	ptr = kzalloc(BITS_TO_LONGS(cppi41_queue_mgr[q_mgr].num_queue),
 		      GFP_KERNEL);
@@ -138,7 +139,6 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
 		 __raw_readl(dma_block->global_ctrl_base +
 			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
-
 	dma_teardown[dma_num].rgn_size = num_desc *
 					 sizeof(struct cppi41_teardown_desc);
 
@@ -688,7 +688,7 @@ int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 {
 	if (q_mgr >= cppi41_num_queue_mgr ||
 	    q_num >= cppi41_queue_mgr[q_mgr].num_queue) {
-		printk("cppi: failed to initialise q_num %d\n", q_num);
+		pr_debug("cppi: failed to initialise q_num %d\n", q_num);
 		return -EINVAL;
 	}
 
@@ -791,6 +791,13 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_get_teardown_info);
+
+u32 cppi41_get_pending(u8 q_mgr, u8 reg)
+{
+	return __raw_readl(cppi41_queue_mgr[q_mgr].q_mgr_rgn_base +
+                         QMGR_QUEUE_PENDING_REG(reg));
+}
+EXPORT_SYMBOL(cppi41_get_pending);
 
 MODULE_DESCRIPTION("TI CPPI 4.1 support");
 MODULE_AUTHOR("MontaVista Software");

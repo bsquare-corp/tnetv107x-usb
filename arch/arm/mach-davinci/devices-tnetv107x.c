@@ -13,7 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#define DEBUG
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -695,7 +694,6 @@ int __init tnetv107x_cppi41_init(void)
 {
 	void *ptr;
 	int ret;
-	printk("initialising cppi41\n");
 
 	ret = cppi41_queue_mgr_init(0, NULL, 0);
 	if (ret) {

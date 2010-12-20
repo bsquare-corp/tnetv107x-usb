@@ -98,7 +98,8 @@ struct musb_hdrc_config {
 struct musb_hdrc_platform_data {
 	/* MUSB_HOST, MUSB_PERIPHERAL, or MUSB_OTG */
 	u8		mode;
-
+	/* ID of this core */
+	u8		id;
 	/* for clk_get() */
 	const char	*clock;
 

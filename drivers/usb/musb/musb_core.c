@@ -115,6 +115,7 @@
 #define TA_WAIT_BCON(m) max_t(int, (m)->a_wait_bcon, OTG_TIME_A_WAIT_BCON)
 
 
+
 unsigned musb_debug;
 module_param_named(debug, musb_debug, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "Debug message level. Default = 0");
@@ -833,7 +834,7 @@ b_host:
 	 */
 	if (int_usb & MUSB_INTR_RESET) {
 		handled = IRQ_HANDLED;
-		if (is_host_capable() && (devctl & MUSB_DEVCTL_HM) != 0) {
+		if (is_host_enabled(musb) && (devctl & MUSB_DEVCTL_HM) != 0) {
 			/*
 			 * Looks like non-HS BABBLE can be ignored, but
 			 * HS BABBLE is an error condition. For HS the solution
@@ -847,7 +848,7 @@ b_host:
 				ERR("Stopping host session -- babble\n");
 				musb_writeb(musb->mregs, MUSB_DEVCTL, 0);
 			}
-		} else if (is_peripheral_capable()) {
+		} else if (is_peripheral_enabled(musb)) {
 			DBG(1, "BUS RESET as %s\n", otg_state_string(musb));
 			switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_OTG
@@ -1629,11 +1630,13 @@ irqreturn_t musb_interrupt(struct musb *musb)
 			/* REVISIT just retval = ep->rx_irq(...) */
 			retval = IRQ_HANDLED;
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_rx(musb, ep_num);
 			} else {
-				if (is_peripheral_capable())
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
+				if (is_peripheral_enabled(musb))
 					musb_g_rx(musb, ep_num);
+#endif
 			}
 		}
 
@@ -1650,11 +1653,13 @@ irqreturn_t musb_interrupt(struct musb *musb)
 			/* REVISIT just retval |= ep->tx_irq(...) */
 			retval = IRQ_HANDLED;
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_tx(musb, ep_num);
 			} else {
-				if (is_peripheral_capable())
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
+				if (is_peripheral_enabled(musb))
 					musb_g_tx(musb, ep_num);
+#endif
 			}
 		}
 		reg >>= 1;
@@ -1684,28 +1689,35 @@ void musb_dma_completion(struct musb *musb, u8 epnum, u8 transmit)
 			/* endpoint 0 */
 			if (devctl & MUSB_DEVCTL_HM)
 				musb_h_ep0_irq(musb);
+#ifdef USB_MUSB_PERIPHERAL
 			else
 				musb_g_ep0_irq(musb);
+#endif
 		}
 #endif
 	} else {
+		pr_debug("board_mode: %d, is_host_enabled: %d, is_peripheral_enabled: %d, transmit: %d, ep: %d, musb: %p\n", musb->board_mode, is_host_enabled(musb), is_peripheral_enabled(musb), transmit, epnum, musb);
 		/* endpoints 1..15 */
 		if (transmit) {
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_tx(musb, epnum);
 			} else {
-				if (is_peripheral_capable())
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
+				if (is_peripheral_enabled(musb))
 					musb_g_tx(musb, epnum);
+#endif
 			}
 		} else {
 			/* receive */
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_rx(musb, epnum);
 			} else {
-				if (is_peripheral_capable())
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
+				if (is_peripheral_enabled(musb))
 					musb_g_rx(musb, epnum);
+#endif
 			}
 		}
 	}
@@ -1964,7 +1976,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		status = -ENODEV;
 		goto fail0;
 	}
-
 	switch (plat->mode) {
 	case MUSB_HOST:
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
@@ -1993,11 +2004,13 @@ bad_config:
 	/* allocate */
 	musb = allocate_instance(dev, plat->config, ctrl);
 	if (!musb) {
+		pr_debug("allocate_instance failed\n");
 		status = -ENOMEM;
 		goto fail0;
 	}
 
 	spin_lock_init(&musb->lock);
+	musb->id = plat->id;
 	musb->board_mode = plat->mode;
 	musb->board_set_power = plat->set_power;
 	musb->set_clock = plat->set_clock;
@@ -2130,6 +2143,7 @@ bad_config:
 				? 'B' : 'A'));
 
 	} else /* peripheral is enabled */ {
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
 		MUSB_DEV_MODE(musb);
 		musb->xceiv->default_a = 0;
 		musb->xceiv->state = OTG_STATE_B_IDLE;
@@ -2140,7 +2154,7 @@ bad_config:
 			is_otg_enabled(musb) ? "OTG" : "PERIPHERAL",
 			status,
 			musb_readb(musb->mregs, MUSB_DEVCTL));
-
+#endif
 	}
 	if (status < 0)
 		goto fail3;
@@ -2175,7 +2189,7 @@ fail5:
 fail4:
 	if (!is_otg_enabled(musb) && is_host_enabled(musb))
 		usb_remove_hcd(musb_to_hcd(musb));
-	else
+	else if (is_peripheral_enabled(musb))
 		musb_gadget_cleanup(musb);
 
 fail3:
