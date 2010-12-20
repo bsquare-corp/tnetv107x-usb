@@ -171,6 +171,10 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	struct usb_pkt_desc *curr_pd;
 	unsigned long pd_addr;
 	int i;
+	static int started;
+	if (started)
+		return 0;
+	started = 1;
 
 	cppi = container_of(controller, struct cppi41, controller);
 
@@ -274,9 +278,9 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	/* Construct/store Tx PD packet info field for later use */
 	cppi->pkt_info = (CPPI41_PKT_TYPE_USB << CPPI41_PKT_TYPE_SHIFT) |
 			 (CPPI41_RETURN_LINKED << CPPI41_RETURN_POLICY_SHIFT) |
-			 (usb_cppi41_info.q_mgr << CPPI41_RETURN_QMGR_SHIFT) |
-			 (usb_cppi41_info.tx_comp_q[0] <<
-			  CPPI41_RETURN_QNUM_SHIFT);
+			 (usb_cppi41_info.q_mgr << CPPI41_RETURN_QMGR_SHIFT);
+//			 (usb_cppi41_info.tx_comp_q[cppi->musb->id] <<
+//			  CPPI41_RETURN_QNUM_SHIFT);
 
 	/* Do necessary configuartion in hardware to get started */
 	reg_base = cppi->musb->ctrl_base;
@@ -368,7 +372,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 	cppi = container_of(controller, struct cppi41, controller);
 
 	/* Remember, ep_num: 1 .. Max_EP, and CPPI ch_num: 0 .. Max_EP - 1 */
-	ch_num = ep_num - 1;
+	ch_num = (ep->musb->id*15) + ep_num - 1;
 
 
 	if (ep_num > USB_CPPI41_NUM_CH) {
@@ -392,8 +396,9 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		 * Teardown descriptors will be pushed to the dedicated
 		 * completion queue.
 		 */
+		printk("allocating channel. musb id: %d\n", ep->musb->id);
 		cppi41_dma_ch_default_queue(&cppi_ch->dma_ch_obj,
-					    0, cppi->teardownQNum);
+					    0, cppi->teardownQNum + ep->musb->id);
 	} else {
 		struct cppi41_rx_ch_cfg rx_cfg;
 		u8 q_mgr = usb_cppi41_info.q_mgr;
@@ -421,7 +426,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		rx_cfg.sop_offset = 0;
 		rx_cfg.retry_starved = 1;
 		rx_cfg.rx_queue.q_mgr = cppi_ch->src_queue.q_mgr = q_mgr;
-		rx_cfg.rx_queue.q_num = usb_cppi41_info.rx_comp_q[0];
+		rx_cfg.rx_queue.q_num = usb_cppi41_info.rx_comp_q[ep->musb->id];
 		for (i = 0; i < 4; i++)
 			rx_cfg.cfg.host_pkt.fdb_queue[i] = cppi_ch->src_queue;
 		cppi41_rx_ch_configure(&cppi_ch->dma_ch_obj, &rx_cfg);
@@ -537,7 +542,11 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 	 * transfer in one PD and one IRQ.  The only time we would NOT want
 	 * to use it is when the hardware constraints prevent it...
 	 */
+#if !defined(CONFIG_ARCH_DAVINCI_TNETV107X) || !defined(CONFIG_USB_MUSB_PERIPHERAL)
 	if ((pkt_size & 0x3f) == 0 && length > pkt_size) {
+#else
+	if (0) {
+#endif
 		num_pds  = 1;
 		pkt_size = length;
 		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);
@@ -574,7 +583,7 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 		hw_desc->desc_info = (CPPI41_DESC_TYPE_HOST <<
 				      CPPI41_DESC_TYPE_SHIFT) | pkt_size;
 		hw_desc->tag_info = tx_ch->tag_info;
-		hw_desc->pkt_info = cppi->pkt_info;
+		hw_desc->pkt_info = cppi->pkt_info | (usb_cppi41_info.tx_comp_q[tx_ch->end_pt->musb->id] << CPPI41_RETURN_QNUM_SHIFT);
 
 		hw_desc->buf_ptr = tx_ch->start_addr + tx_ch->curr_offset;
 		hw_desc->buf_len = pkt_size;
@@ -701,7 +710,11 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * Rx can use the generic RNDIS mode where we can probably fit this
 	 * transfer in one PD and one IRQ (or two with a short packet).
 	 */
+#if !defined(CONFIG_ARCH_DAVINCI_TNETV107X) || !defined(CONFIG_USB_MUSB_PERIPHERAL)
 	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
+#else
+	if (0) {
+#endif
 		cppi41_mode_update(rx_ch, USB_GENERIC_RNDIS_MODE);
 		cppi41_autoreq_update(rx_ch, USB_AUTOREQ_ALL_BUT_EOP);
 
@@ -950,7 +963,7 @@ static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 
 	/* Now restore the default Rx completion queue... */
 	cppi41_dma_ch_default_queue(&rx_ch->dma_ch_obj, usb_cppi41_info.q_mgr,
-				    usb_cppi41_info.rx_comp_q[0]);
+				    usb_cppi41_info.rx_comp_q[rx_ch->end_pt->musb->id]);
 }
 
 /*
@@ -1100,8 +1113,9 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 struct dma_controller * __init dma_controller_create(struct musb  *musb,
 						     void __iomem *mregs)
 {
-	struct cppi41 *cppi;
-
+	static struct cppi41 *cppi;
+	if (cppi)
+		return &cppi->controller;
 	cppi = kzalloc(sizeof *cppi, GFP_KERNEL);
 	if (!cppi)
 		return NULL;
@@ -1186,7 +1200,7 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 
                         udelay(20);
 			/* Tx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 1);
+			musb_dma_completion(tx_ch->end_pt->musb, ep_num, 1);
 		}
 	}
 }
@@ -1213,12 +1227,11 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 			ERR("Invalid PD popped from Rx completion queue\n");
 			continue;
 		}
-
 		/* Extract the data from received packet descriptor */
 		ch_num = curr_pd->ch_num;
 		ep_num = curr_pd->ep_num;
 		length = curr_pd->hw_desc.buf_len;
-
+		printk("got RX PD %x, length: %d\n", curr_pd, length);
 		rx_ch = &cppi->rx_cppi_ch[ch_num];
 		rx_ch->channel.actual_len += length;
 
@@ -1233,9 +1246,11 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 			rx_ch->channel.status = MUSB_DMA_STATUS_FREE;
 
 			/* Rx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 0);
-		} else
+			musb_dma_completion(rx_ch->end_pt->musb, ep_num, 0);
+		} else {
+			printk("calling cppi41_next_rx_segment\n");
 			cppi41_next_rx_segment(rx_ch);
+		}
 	}
 }
 

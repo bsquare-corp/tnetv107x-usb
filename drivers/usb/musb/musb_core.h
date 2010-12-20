@@ -73,12 +73,13 @@ struct musb_ep;
 #include "musb_host.h"
 
 
-
-#ifdef CONFIG_USB_MUSB_OTG
-
 #define	is_peripheral_enabled(musb)	((musb)->board_mode != MUSB_HOST)
 #define	is_host_enabled(musb)		((musb)->board_mode != MUSB_PERIPHERAL)
 #define	is_otg_enabled(musb)		((musb)->board_mode == MUSB_OTG)
+
+
+#ifdef CONFIG_USB_MUSB_OTG
+
 
 /* NOTE:  otg and peripheral-only state machines start at B_IDLE.
  * OTG or host-only go to A_IDLE when ID is sensed.
@@ -87,9 +88,6 @@ struct musb_ep;
 #define is_host_active(m)		((m)->is_host)
 
 #else
-#define	is_peripheral_enabled(musb)	is_peripheral_capable()
-#define	is_host_enabled(musb)		is_host_capable()
-#define	is_otg_enabled(musb)		0
 
 #define	is_peripheral_active(musb)	is_peripheral_capable()
 #define	is_host_active(musb)		is_host_capable()
@@ -456,6 +454,7 @@ struct musb {
 #ifdef MUSB_CONFIG_PROC_FS
 	struct proc_dir_entry *proc_entry;
 #endif
+	u8 id;
 };
 
 #ifdef CONFIG_PM

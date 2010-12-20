@@ -46,6 +46,11 @@
 #include "cppi41_dma.h"
 
 
+#undef DBG
+#define DBG(A,B,...) printk(B, ## __VA_ARGS__)
+#define pr_debug(A,...) printk(A, ## __VA_ARGS__)
+#define pr_info(A,...) printk(A, ## __VA_ARGS__)
+#define pr_err(A,...) printk(A, ## __VA_ARGS__)
 
 
 struct tnetv107x_musb_data {
@@ -163,7 +168,7 @@ static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
 		musb->controller->platform_data;
 		struct tnetv107x_musb_data  *tnetv_bdata = usb_data->board_data;
 	int flags;
-	if (is_peripheral_active(musb))
+	if (is_peripheral_enabled(musb))
 		return;
 	WARN_ON(is_on && is_peripheral_active(musb));
 
@@ -418,7 +423,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 	u32 epintr, usbintr;
 
 	spin_lock_irqsave(&musb->lock, flags);
-
+	printk("tnetv interrupt %d, hci: %p\n", irq, hci);
 	/*
 	 * NOTE: TNETV107x shadows the Mentor IRQs.  Don't manage them through
 	 * the Mentor registers (except for setup), use the TI ones and EOI.
@@ -578,8 +583,8 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 	if (request_irq( 35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb))
 	{
 		pr_debug("failed to get IRQ\n");
-		ret = -ENODEV;
-		goto fail;
+//		ret = -ENODEV;
+//		goto fail;
 	}
 #endif /* CONFIG_USB_TI_CPPI41_DMA */
 	clk_enable(musb->clock);
@@ -742,7 +747,7 @@ static const u16 rx_comp_q[] = { 94, 95 };
 const struct usb_cppi41_info usb_cppi41_info = {
         .dma_block      = 0,
 //        .ep_dma_ch      = {15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 },
-	.ep_dma_ch      = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14},
+	.ep_dma_ch      = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30},
         .q_mgr          = 0,
         .num_tx_comp_q  = 2,
         .num_rx_comp_q  = 2,
