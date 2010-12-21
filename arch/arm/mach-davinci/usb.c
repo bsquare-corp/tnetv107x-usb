@@ -196,14 +196,15 @@ int __init tnetv107x_register_usb20(void)
 	usb_dev[0].id = 0; /* tnetv has 2xmusb controllers */
 	usb_dev[0].resource = tnetv107x_usb20_resources[0];
 	usb_dev[0].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[0]);
-	platform_device_register(&usb_dev[0]); //FIXME: check return value -SP
 	//controller 1
 	usb_data[1].clock  = "clk_usb1";
 	usb_data[1].power	= 500 / 2;
 	usb_dev[1].id = 1; /* tnetv has 2xmusb controllers */
 	usb_dev[1].resource = tnetv107x_usb20_resources[1];
 	usb_dev[1].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[1]);
-	return platform_device_register(&usb_dev[1]);
+	platform_device_register(&usb_dev[1]); //FIXME: check return value -SP
+	return platform_device_register(&usb_dev[0]);
+
 }
 
 #endif	/* CONFIG_ARCH_DAVINCI_TNETV107X */

@@ -89,8 +89,8 @@ struct musb_ep;
 
 #else
 
-#define	is_peripheral_active(musb)	is_peripheral_capable()
-#define	is_host_active(musb)		is_host_capable()
+#define	is_peripheral_active(musb)	is_peripheral_enabled(musb)
+#define	is_host_active(musb)		is_host_enabled(musb)
 #endif
 
 #if defined(CONFIG_USB_MUSB_OTG) || defined(CONFIG_USB_MUSB_PERIPHERAL)

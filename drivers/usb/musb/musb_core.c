@@ -1634,13 +1634,13 @@ irqreturn_t musb_interrupt(struct musb *musb)
 			/* musb_ep_select(musb->mregs, ep_num); */
 			/* REVISIT just retval = ep->rx_irq(...) */
 			retval = IRQ_HANDLED;
-//			if (devctl & MUSB_DEVCTL_HM) {
-//				if (is_host_active(musb))
+			if (devctl & MUSB_DEVCTL_HM) {
+				if (is_host_active(musb))
 					musb_host_rx(musb, ep_num);
-//			} else {
-//				if (is_peripheral_active(musb))
+			} else {
+				if (is_peripheral_active(musb))
 					musb_g_rx(musb, ep_num);
-//			}
+			}
 		}
 
 		reg >>= 1;
@@ -1695,6 +1695,7 @@ void musb_dma_completion(struct musb *musb, u8 epnum, u8 transmit)
 		}
 #endif
 	} else {
+		printk("board_mode: %d, is_host_enabled: %d, is_peripheral_enabled: %d, transmit: %d, ep: %d, musb: %p\n", musb->board_mode, is_host_enabled(musb), is_peripheral_enabled(musb), transmit, epnum, musb);
 		/* endpoints 1..15 */
 		if (transmit) {
 //			if (devctl & MUSB_DEVCTL_HM) {

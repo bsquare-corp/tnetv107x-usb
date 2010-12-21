@@ -278,9 +278,9 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	/* Construct/store Tx PD packet info field for later use */
 	cppi->pkt_info = (CPPI41_PKT_TYPE_USB << CPPI41_PKT_TYPE_SHIFT) |
 			 (CPPI41_RETURN_LINKED << CPPI41_RETURN_POLICY_SHIFT) |
-			 (usb_cppi41_info.q_mgr << CPPI41_RETURN_QMGR_SHIFT);
-//			 (usb_cppi41_info.tx_comp_q[cppi->musb->id] <<
-//			  CPPI41_RETURN_QNUM_SHIFT);
+			 (usb_cppi41_info.q_mgr << CPPI41_RETURN_QMGR_SHIFT) |
+			 (usb_cppi41_info.tx_comp_q[0] <<
+			  CPPI41_RETURN_QNUM_SHIFT);
 
 	/* Do necessary configuartion in hardware to get started */
 	reg_base = cppi->musb->ctrl_base;
@@ -398,7 +398,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		 */
 		printk("allocating channel. musb id: %d\n", ep->musb->id);
 		cppi41_dma_ch_default_queue(&cppi_ch->dma_ch_obj,
-					    0, cppi->teardownQNum + ep->musb->id);
+					    0, cppi->teardownQNum);
 	} else {
 		struct cppi41_rx_ch_cfg rx_cfg;
 		u8 q_mgr = usb_cppi41_info.q_mgr;
@@ -426,7 +426,7 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		rx_cfg.sop_offset = 0;
 		rx_cfg.retry_starved = 1;
 		rx_cfg.rx_queue.q_mgr = cppi_ch->src_queue.q_mgr = q_mgr;
-		rx_cfg.rx_queue.q_num = usb_cppi41_info.rx_comp_q[ep->musb->id];
+		rx_cfg.rx_queue.q_num = usb_cppi41_info.rx_comp_q[0];
 		for (i = 0; i < 4; i++)
 			rx_cfg.cfg.host_pkt.fdb_queue[i] = cppi_ch->src_queue;
 		cppi41_rx_ch_configure(&cppi_ch->dma_ch_obj, &rx_cfg);
@@ -583,7 +583,7 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 		hw_desc->desc_info = (CPPI41_DESC_TYPE_HOST <<
 				      CPPI41_DESC_TYPE_SHIFT) | pkt_size;
 		hw_desc->tag_info = tx_ch->tag_info;
-		hw_desc->pkt_info = cppi->pkt_info | (usb_cppi41_info.tx_comp_q[tx_ch->end_pt->musb->id] << CPPI41_RETURN_QNUM_SHIFT);
+		hw_desc->pkt_info = cppi->pkt_info;
 
 		hw_desc->buf_ptr = tx_ch->start_addr + tx_ch->curr_offset;
 		hw_desc->buf_len = pkt_size;
@@ -963,7 +963,7 @@ static void usb_rx_ch_teardown(struct cppi41_channel *rx_ch)
 
 	/* Now restore the default Rx completion queue... */
 	cppi41_dma_ch_default_queue(&rx_ch->dma_ch_obj, usb_cppi41_info.q_mgr,
-				    usb_cppi41_info.rx_comp_q[rx_ch->end_pt->musb->id]);
+				    usb_cppi41_info.rx_comp_q[0]);
 }
 
 /*
@@ -1244,7 +1244,7 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 		if (unlikely(rx_ch->channel.actual_len >= rx_ch->length ||
 			     length < curr_pd->hw_desc.orig_buf_len)) {
 			rx_ch->channel.status = MUSB_DMA_STATUS_FREE;
-
+			printk("calling musb_dma_completion\n");
 			/* Rx completion routine callback */
 			musb_dma_completion(rx_ch->end_pt->musb, ep_num, 0);
 		} else {
