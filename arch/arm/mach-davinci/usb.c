@@ -203,8 +203,8 @@ int __init tnetv107x_register_usb20(void)
 	usb_dev[1].resource = tnetv107x_usb20_resources[1];
 	usb_dev[1].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[1]);
 	platform_device_register(&usb_dev[1]); //FIXME: check return value -SP
-	return platform_device_register(&usb_dev[0]);
-
+	platform_device_register(&usb_dev[0]);
+	return 0;
 }
 
 #endif	/* CONFIG_ARCH_DAVINCI_TNETV107X */

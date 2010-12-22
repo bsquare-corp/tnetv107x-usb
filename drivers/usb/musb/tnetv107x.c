@@ -706,10 +706,11 @@ int musb_platform_exit(struct musb *musb)
 	/* power down the phy */
 	phy_ctrl(pdev->id, 0);
 
-	if(pdata->set_vbus == NULL) {
+	if (pdata->set_vbus == NULL) {
 		flush_scheduled_work();
 		/* free the regulator */
-		regulator_put(ptnetv_musb_data->vbus_regulator);
+		if (is_host_enabled(musb))
+			regulator_put(ptnetv_musb_data->vbus_regulator);
 	}
 
 done:
