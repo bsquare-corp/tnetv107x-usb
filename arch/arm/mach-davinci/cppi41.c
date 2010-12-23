@@ -130,16 +130,19 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 	 * Tell the hardware about the Teardown descriptor
 	 * queue manager and queue number.
 	 */
+	printk("1\n");
 	dma_block = &cppi41_dma_block[dma_num];
+	printk("2\n");
 	__raw_writel((q_mgr << DMA_TD_DESC_QMGR_SHIFT) |
 		     (q_num << DMA_TD_DESC_QNUM_SHIFT),
 		     dma_block->global_ctrl_base +
 		     DMA_TEARDOWN_FREE_DESC_CTRL_REG);
-	pr_debug("Teardown free descriptor control @ %p, value: %x (q_mgr=%d, q_num=%d)\n",
-		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
-		 __raw_readl(dma_block->global_ctrl_base +
-			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
-
+	printk("3\n");
+//	pr_debug("Teardown free descriptor control @ %p, value: %x (q_mgr=%d, q_num=%d)\n",
+//		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
+//		 __raw_readl(dma_block->global_ctrl_base +
+//			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
+	printk("4\n");
 	dma_teardown[dma_num].rgn_size = num_desc *
 					 sizeof(struct cppi41_teardown_desc);
 
@@ -792,6 +795,13 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_get_teardown_info);
+
+u32 cppi41_get_pending(u8 q_mgr, u8 reg)
+{
+	return __raw_readl(cppi41_queue_mgr[q_mgr].q_mgr_rgn_base +
+                         QMGR_QUEUE_PENDING_REG(reg));
+}
+EXPORT_SYMBOL(cppi41_get_pending);
 
 MODULE_DESCRIPTION("TI CPPI 4.1 support");
 MODULE_AUTHOR("MontaVista Software");

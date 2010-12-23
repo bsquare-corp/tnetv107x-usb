@@ -546,9 +546,7 @@ irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
 	u32 pend2;
 
         spin_lock_irqsave(&musb->lock, flags);
-        pend2 = musb_readl(cppi41_queue_mgr[0].q_mgr_rgn_base,
-                         QMGR_QUEUE_PENDING_REG(2));
-        pr_debug("cppi interrupt pending: %x @ %p\n", pend2, cppi41_queue_mgr[0].q_mgr_rgn_base + QMGR_QUEUE_PENDING_REG(2));
+        pend2 = cppi41_get_pending(0, 2);
         if (pend2 & (0xf << 28)) {              /* queues 92 - 95 */
                 u32 rx = (pend2 >> 30) & 0x3;
                 u32 tx = (pend2 >> 28) & 0x3;
@@ -653,6 +651,10 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 		 rev, musb_readb(reg_base, USB_CTRL_REG));
 
 	musb->isr = tnetv107x_interrupt;
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+        tnetv107x_cppi41_init();
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
+
 	return 0;
 
 fail2:
