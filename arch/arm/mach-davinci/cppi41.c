@@ -35,6 +35,7 @@
 
 #include <mach/cppi41.h>
 
+
 static struct {
 	void *virt_addr;
 	dma_addr_t phys_addr;
@@ -688,7 +689,7 @@ int cppi41_queue_init(struct cppi41_queue_obj *queue_obj, u8 q_mgr, u16 q_num)
 {
 	if (q_mgr >= cppi41_num_queue_mgr ||
 	    q_num >= cppi41_queue_mgr[q_mgr].num_queue) {
-		printk("cppi: failed to initialise q_num %d\n", q_num);
+		pr_debug("cppi: failed to initialise q_num %d\n", q_num);
 		return -EINVAL;
 	}
 

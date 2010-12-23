@@ -58,19 +58,26 @@ static struct musb_hdrc_config musb_config = {
 
 static struct musb_hdrc_platform_data usb_data[] = {
 	{
-#if defined(CONFIG_USB_MUSB_OTG)
+#if defined(CONFIG_USB_MUSB_USB0_OTG)
 		/* OTG requires a Mini-AB connector */
 		.mode           = MUSB_OTG,
-#elif defined(CONFIG_USB_MUSB_PERIPHERAL)
+#elif defined(CONFIG_USB_MUSB_USB0_PERIPHERAL)
 		.mode           = MUSB_PERIPHERAL,
-#elif defined(CONFIG_USB_MUSB_HOST)
+#elif defined(CONFIG_USB_MUSB_USB0_HOST)
 		.mode           = MUSB_HOST,
 #endif
 		.clock		= "usb",
 		.config		= &musb_config,
 	},
 	{
+#if defined(CONFIG_USB_MUSB_USB1_OTG)
+		/* OTG requires a Mini-AB connector */
+		.mode           = MUSB_OTG,
+#elif defined(CONFIG_USB_MUSB_USB1_PERIPHERAL)
+		.mode           = MUSB_PERIPHERAL,
+#elif defined(CONFIG_USB_MUSB_USB1_HOST)
 		.mode           = MUSB_HOST,
+#endif
 		.clock		= "usb",
 		.config		= &musb_config,
 	},
@@ -202,8 +209,12 @@ int __init tnetv107x_register_usb20(void)
 	usb_dev[1].id = 1; /* tnetv has 2xmusb controllers */
 	usb_dev[1].resource = tnetv107x_usb20_resources[1];
 	usb_dev[1].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[1]);
-	platform_device_register(&usb_dev[1]); //FIXME: check return value -SP
+#if defined(CONFIG_USB_MUSB_USB0_HOST) || defined(CONFIG_USB_MUSB_USB0_PERIPHERAL)
 	platform_device_register(&usb_dev[0]);
+#endif
+#if defined(CONFIG_USB_MUSB_USB1_HOST) || defined(CONFIG_USB_MUSB_USB1_PERIPHERAL)
+	platform_device_register(&usb_dev[1]); //FIXME: check return value -SP
+#endif
 	return 0;
 }
 
