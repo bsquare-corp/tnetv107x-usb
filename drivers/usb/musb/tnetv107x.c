@@ -47,10 +47,7 @@
 
 
 #undef DBG
-#define DBG(A,B,...) printk(B, ## __VA_ARGS__)
-#define pr_debug(A,...) printk(A, ## __VA_ARGS__)
-#define pr_info(A,...) printk(A, ## __VA_ARGS__)
-#define pr_err(A,...) printk(A, ## __VA_ARGS__)
+#define DBG(A,B,...) pr_debug(B, ## __VA_ARGS__)
 
 
 struct tnetv107x_musb_data {
@@ -168,8 +165,6 @@ static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
 		musb->controller->platform_data;
 		struct tnetv107x_musb_data  *tnetv_bdata = usb_data->board_data;
 	int flags;
-	if (is_peripheral_enabled(musb))
-		return;
 	WARN_ON(is_on && is_peripheral_active(musb));
 
 	if (is_on)
@@ -184,6 +179,10 @@ static void tnetv107xevm_set_vbus(struct musb *musb, int is_on)
 	schedule_work(&tnetv_bdata->vbus_work);
 }
 
+static void tnetv107xevm_dummy_set_vbus(struct musb *musb, int is_on)
+{
+	return;
+}
 static inline int phy_ctrl(int controller, int turn_on)
 {
 	void __iomem	*phyctl;
@@ -278,7 +277,7 @@ void musb_platform_enable(struct musb *musb)
 
 
 	/* Force the DRVVBUS IRQ so we can start polling for ID change. */
-	if (is_otg_enabled(musb))
+//	if (is_otg_enabled(musb))
 		musb_writel(reg_base, CORE_INTR_SRC_SET_REG,
 			    USB_INTR_DRVVBUS << USB_INTR_USB_SHIFT);
 }
@@ -313,7 +312,6 @@ static void otg_timer(unsigned long _musb)
 	void __iomem		*mregs = musb->mregs;
 	u8			devctl;
 	unsigned long		flags;
-
 	/*
 	 * We poll because DaVinci's won't expose several OTG-critical
 	 * status change events (from the transceiver) otherwise.
@@ -423,7 +421,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 	u32 epintr, usbintr;
 
 	spin_lock_irqsave(&musb->lock, flags);
-	printk("tnetv interrupt %d, hci: %p\n", irq, hci);
+	pr_debug("tnetv interrupt %d, hci: %p\n", irq, hci);
 	/*
 	 * NOTE: TNETV107x shadows the Mentor IRQs.  Don't manage them through
 	 * the Mentor registers (except for setup), use the TI ones and EOI.
@@ -502,7 +500,7 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 			portstate(musb->port1_status &= ~USB_PORT_STAT_POWER);
 		}
 
-		tnetv107xevm_set_vbus(musb, drvvbus);
+		musb->board_set_vbus(musb, drvvbus);
 
 		DBG(2, "VBUS %s (%s)%s, devctl %02x\n",
 				drvvbus ? "on" : "off",
@@ -601,9 +599,10 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 	}
 
 	spin_lock_init(&ptnetv_musb_data->lock);
-
+	/* don't need (or necessarily have) VBUS. if it exists then board_set_vbus is changed later */
+	musb->board_set_vbus = tnetv107xevm_dummy_set_vbus;
 	if (is_host_enabled(musb)) {
-		printk("enabling host mode things\n");
+		pr_debug("enabling host mode things\n");
 		setup_timer(&ptnetv_musb_data->otg_workaround, otg_timer, (unsigned long) musb);
 		if(pdata->set_vbus != NULL) {
 			musb->board_set_vbus = pdata->set_vbus;
@@ -613,40 +612,39 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 			ptnetv_musb_data->vbus_regulator =
 				regulator_get(musb->controller, "vbus");
 
-			if (WARN(IS_ERR(ptnetv_musb_data->vbus_regulator)
-				 , "Unable to obtain voltage regulator for USB;"))
-				goto fail2;
-
-			if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
-				/* the reg framework can leave regulators on during
-				   bootup, leading to unbalanced enable/disables */
-				regulator_enable(ptnetv_musb_data->vbus_regulator);
-				ptnetv_musb_data->vbus_state = 1;
-			} else {
-				ptnetv_musb_data->vbus_state = 0;
+			if (IS_ERR(ptnetv_musb_data->vbus_regulator))
+				 pr_debug("Unable to obtain voltage regulator for USB;");
+			else {
+				if(regulator_is_enabled(ptnetv_musb_data->vbus_regulator)) {
+					/* the reg framework can leave regulators on during
+					   bootup, leading to unbalanced enable/disables */
+					regulator_enable(ptnetv_musb_data->vbus_regulator);
+					ptnetv_musb_data->vbus_state = 1;
+				} else {
+					ptnetv_musb_data->vbus_state = 0;
+				}
+				/* mA/2 -> uA */
+				power = (pdata->power * 2) * 1000;
+				if (IS_ERR(regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
+								       power, power)))
+					WARNING("Unable to set current limit %duA\n",power);
+				musb->board_set_vbus = tnetv107xevm_set_vbus;
 			}
-
-			/* mA/2 -> uA */
-			power = (pdata->power * 2) * 1000;
-			if (IS_ERR(regulator_set_current_limit(ptnetv_musb_data->vbus_regulator,
-							       power, power)))
-				WARNING("Unable to set current limit %duA\n",power);
-
-			musb->board_set_vbus = tnetv107xevm_set_vbus;
 		}
-	} else /* don't need (or necessarily have) VBUS on device in peripheral mode */
-		musb->board_set_vbus = tnetv107xevm_set_vbus;
+	}
 
 	/* Reset the controller */
 	musb_writel(reg_base, USB_CTRL_REG, USB_SOFT_RESET_MASK);
 
 	/* Start the on-chip PHY and its PLL. */
 	if (phy_ctrl(pdev->id, 1) < 0) {
-		printk("phy_ctrl failed\n");
+		pr_debug("phy_ctrl failed\n");
 		goto fail2;
 	}
-
-	musb->board_set_vbus(musb, 1);
+	if (is_host_enabled(musb))
+		musb->board_set_vbus(musb, 1);
+	else
+		musb->board_set_vbus(musb, 0);
 
 	msleep(5);
 
