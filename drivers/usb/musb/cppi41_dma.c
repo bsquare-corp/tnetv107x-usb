@@ -125,6 +125,7 @@ struct cppi41 {
 					/* object */
 	u32 pkt_info;			/* Tx PD Packet Information field */
 	spinlock_t lock;
+	u8 musbs;			/* Number of MUSB cores using this controller */
 };
 
 #ifdef DEBUG_CPPI_TD
@@ -175,12 +176,12 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	struct usb_pkt_desc *curr_pd;
 	unsigned long pd_addr;
 	int i;
-	static int started;
-	if (started)
-		return 0;
-	started = 1;
 
 	cppi = container_of(controller, struct cppi41, controller);
+	/* don't try to start the same controller more than once */
+	if (cppi->musbs++ > 0)
+		return 0;
+
 	cppi->lock = SPIN_LOCK_UNLOCKED;
 
 	/*
@@ -327,6 +328,10 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	void __iomem *reg_base;
 
 	cppi = container_of(controller, struct cppi41, controller);
+
+	/* don't actually stop the controller if there's still another MUSB core using it */
+	if (--cppi->musbs > 0)
+		return 0;
 
 	/* Free the teardown completion queue */
 	if (cppi41_queue_free(usb_cppi41_info.q_mgr, cppi->teardownQNum))
@@ -1131,6 +1136,8 @@ struct dma_controller * __init dma_controller_create(struct musb  *musb,
 						     void __iomem *mregs)
 {
 	static struct cppi41 *cppi;
+
+	/* return the same cppi controller for multiple usb cores */
 	if (cppi)
 		return &cppi->controller;
 	cppi = kzalloc(sizeof *cppi, GFP_KERNEL);

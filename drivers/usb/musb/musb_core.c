@@ -2014,7 +2014,7 @@ bad_config:
 	}
 
 	spin_lock_init(&musb->lock);
-	musb->id = ((unsigned int)ctrl & 0x800) ? 1 : 0;
+	musb->id = plat->id;
 	pr_debug("musb: %p, ctrl: %x, id: %d\n", musb, ctrl, musb->id);
 	musb->board_mode = plat->mode;
 	musb->board_set_power = plat->set_power;

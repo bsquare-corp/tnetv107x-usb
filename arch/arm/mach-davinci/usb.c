@@ -58,6 +58,7 @@ static struct musb_hdrc_config musb_config = {
 
 static struct musb_hdrc_platform_data usb_data[] = {
 	{
+		.id		= 0,
 #if defined(CONFIG_USB_MUSB_USB0_OTG)
 		/* OTG requires a Mini-AB connector */
 		.mode           = MUSB_OTG,
@@ -70,6 +71,7 @@ static struct musb_hdrc_platform_data usb_data[] = {
 		.config		= &musb_config,
 	},
 	{
+		.id		= 1,
 #if defined(CONFIG_USB_MUSB_USB1_OTG)
 		/* OTG requires a Mini-AB connector */
 		.mode           = MUSB_OTG,
