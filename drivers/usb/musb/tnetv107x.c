@@ -652,7 +652,7 @@ int __init musb_platform_init(struct musb *musb, void *board_data) {
 
 	musb->isr = tnetv107x_interrupt;
 #ifdef CONFIG_USB_TI_CPPI41_DMA
-        tnetv107x_cppi41_init();
+//        tnetv107x_cppi41_init();
 #endif /* CONFIG_USB_TI_CPPI41_DMA */
 
 	return 0;

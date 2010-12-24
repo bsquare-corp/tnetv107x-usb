@@ -17,7 +17,6 @@
 #define DA8XX_USB1_BASE 	0x01e25000
 #define TNETV107X_USB0_BASE	0x08120000
 #define TNETV107X_USB1_BASE	0x08120800
-/* FIXME: changed to point to USB0 */
 
 #if defined(CONFIG_USB_MUSB_HDRC) || defined(CONFIG_USB_MUSB_HDRC_MODULE)
 
@@ -199,13 +198,13 @@ static struct resource tnetv107x_usb20_resources[2][2] = {
 
 int __init tnetv107x_register_usb20(void)
 {
-	//controller 0
+	/* controller 0 */
 	usb_data[0].clock  = "clk_usb0";
 	usb_data[0].power	= 500 / 2;
 	usb_dev[0].id = 0; /* tnetv has 2xmusb controllers */
 	usb_dev[0].resource = tnetv107x_usb20_resources[0];
 	usb_dev[0].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[0]);
-	//controller 1
+	/* controller 1 */
 	usb_data[1].clock  = "clk_usb1";
 	usb_data[1].power	= 500 / 2;
 	usb_dev[1].id = 1; /* tnetv has 2xmusb controllers */

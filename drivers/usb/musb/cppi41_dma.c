@@ -19,8 +19,6 @@
  *
  */
 
-#define USBDRV_DEBUG
-#define DEBUG
 
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
@@ -34,7 +32,6 @@
 
 
 
-#define DEBUG_CPPI_TD
 
 /* Configuration */
 #define USB_CPPI41_DESC_SIZE_SHIFT 6
@@ -44,7 +41,7 @@
 
 
 #ifdef USBDRV_DEBUG
-#define dprintk(x, ...) printk(KERN_DEBUG x, ## __VA_ARGS__)
+#define dprintk(x, ...) printk(x, ## __VA_ARGS__)
 #else
 #define dprintk(x, ...)
 #endif
@@ -181,7 +178,9 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	/* don't try to start the same controller more than once */
 	if (cppi->musbs++ > 0)
 		return 0;
-
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	tnetv107x_cppi41_init();
+#endif
 	cppi->lock = SPIN_LOCK_UNLOCKED;
 
 	/*
@@ -406,7 +405,6 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 		 * Teardown descriptors will be pushed to the dedicated
 		 * completion queue.
 		 */
-		pr_debug("allocating channel. musb id: %d\n", ep->musb->id);
 		cppi41_dma_ch_default_queue(&cppi_ch->dma_ch_obj,
 					    0, cppi->teardownQNum);
 	} else {
@@ -555,7 +553,12 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 	 * transfer in one PD and one IRQ.  The only time we would NOT want
 	 * to use it is when the hardware constraints prevent it...
 	 */
-	if (!is_peripheral_enabled(tx_ch->end_pt->musb) && (pkt_size & 0x3f) == 0 && length > pkt_size) {
+	if ((pkt_size & 0x3f) == 0 && length > pkt_size
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	     /* RNDIS in peripheral mode is broken on TNETV */
+	     && !is_peripheral_enabled(tx_ch->end_pt->musb)
+#endif
+	    ) {
 		num_pds  = 1;
 		pkt_size = length;
 		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);

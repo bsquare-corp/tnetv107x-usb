@@ -85,10 +85,6 @@ config USB_TUSB6010
 	  (a high speed serial link).  It can use system-specific external
 	  DMA controllers.
 
-#choice
-#	prompt "Driver Mode"
-#	depends on USB_MUSB_HDRC
-
 # use USB_MUSB_HDRC_HCD not USB_MUSB_HOST to #ifdef host side support;
 # OTG needs both roles, not just USB_MUSB_HOST.
 config USB_MUSB_HOST

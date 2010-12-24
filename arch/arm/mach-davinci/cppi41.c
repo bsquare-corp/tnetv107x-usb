@@ -68,14 +68,14 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 	q_mgr_regs = cppi41_queue_mgr[q_mgr].q_mgr_rgn_base;
 
 	__raw_writel(rgn0_base, q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG);
-//	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
+	pr_debug("Linking RAM region 0 base @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_BASE_REG));
 
 	__raw_writel(rgn0_size, q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG);
-//	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
+	pr_debug("Linking RAM region 0 size @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN0_SIZE_REG));
 
 	ptr = dma_alloc_coherent(NULL, 0x10000 - rgn0_size * 4,
 				 &linking_ram[q_mgr].phys_addr,
@@ -89,9 +89,9 @@ int __init cppi41_queue_mgr_init(u8 q_mgr, dma_addr_t rgn0_base, u16 rgn0_size)
 
 	__raw_writel(linking_ram[q_mgr].phys_addr,
 		     q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG);
-//	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
-//		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
-//		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
+	pr_debug("Linking RAM region 1 base @ %p, value: %x\n",
+		 q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG,
+		 __raw_readl(q_mgr_regs + QMGR_LINKING_RAM_RGN1_BASE_REG));
 
 	ptr = kzalloc(BITS_TO_LONGS(cppi41_queue_mgr[q_mgr].num_queue),
 		      GFP_KERNEL);
@@ -130,19 +130,15 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 	 * Tell the hardware about the Teardown descriptor
 	 * queue manager and queue number.
 	 */
-	printk("1\n");
 	dma_block = &cppi41_dma_block[dma_num];
-	printk("2\n");
 	__raw_writel((q_mgr << DMA_TD_DESC_QMGR_SHIFT) |
 		     (q_num << DMA_TD_DESC_QNUM_SHIFT),
 		     dma_block->global_ctrl_base +
 		     DMA_TEARDOWN_FREE_DESC_CTRL_REG);
-	printk("3\n");
-//	pr_debug("Teardown free descriptor control @ %p, value: %x (q_mgr=%d, q_num=%d)\n",
-//		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
-//		 __raw_readl(dma_block->global_ctrl_base +
-//			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
-	printk("4\n");
+	pr_debug("Teardown free descriptor control @ %p, value: %x (q_mgr=%d, q_num=%d)\n",
+		 dma_block->global_ctrl_base + DMA_TEARDOWN_FREE_DESC_CTRL_REG,
+		 __raw_readl(dma_block->global_ctrl_base +
+			     DMA_TEARDOWN_FREE_DESC_CTRL_REG), q_mgr, q_num);
 	dma_teardown[dma_num].rgn_size = num_desc *
 					 sizeof(struct cppi41_teardown_desc);
 
