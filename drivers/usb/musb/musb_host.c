@@ -46,12 +46,6 @@
 #include "musb_core.h"
 #include "musb_host.h"
 
-#undef DBG
-#define DBG(A,B,...) printk(B, ## __VA_ARGS__)
-#define pr_debug(A,...) printk(A, ## __VA_ARGS__)
-#define pr_info(A,...) printk(A, ## __VA_ARGS__)
-#define pr_err(A,...) printk(A, ## __VA_ARGS__)
-
 
 /* MUSB HOST status 22-mar-2006
  *
