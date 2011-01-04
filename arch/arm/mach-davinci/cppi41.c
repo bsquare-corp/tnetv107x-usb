@@ -24,8 +24,6 @@
  *
  */
 
-#define	DEBUG
-
 #include <linux/io.h>
 #include <linux/init.h>
 #include <linux/kernel.h>

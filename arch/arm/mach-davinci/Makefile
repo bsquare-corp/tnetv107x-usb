@@ -3,7 +3,6 @@
 #
 #
 
-CFLAGS_cppi41.o := -DDEBUG
 # Common objects
 obj-y 			:= time.o clock.o serial.o io.o psc.o \
 			   gpio.o dma.o usb.o common.o sram.o aemif.o
