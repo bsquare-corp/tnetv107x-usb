@@ -1318,7 +1318,7 @@ void musb_host_tx(struct musb *musb, u8 epnum)
 	} else if ((usb_pipeisoc(pipe) || transfer_pending) && dma) {
 		if (musb_tx_dma_program(musb->dma_controller, hw_ep, qh, urb,
 				offset, length)) {
-			if (is_cppi_enabled() || tusb_dma_omap())
+			if (is_cppi41_enabled() || is_cppi_enabled() || tusb_dma_omap())
 				musb_h_tx_dma_start(hw_ep);
 			return;
 		}
