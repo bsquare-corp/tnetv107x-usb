@@ -15,6 +15,7 @@
 
 #define DA8XX_USB0_BASE 	0x01e00000
 #define DA8XX_USB1_BASE 	0x01e25000
+#define TNETV107X_USB0_BASE     0x08120000
 #define TNETV107X_USB1_BASE	0x08120800
 
 #if defined(CONFIG_USB_MUSB_HDRC) || defined(CONFIG_USB_MUSB_HDRC_MODULE)
@@ -54,17 +55,24 @@ static struct musb_hdrc_config musb_config = {
 
 #endif
 
-static struct musb_hdrc_platform_data usb_data = {
-#if defined(CONFIG_USB_MUSB_OTG)
-	/* OTG requires a Mini-AB connector */
-	.mode           = MUSB_OTG,
-#elif defined(CONFIG_USB_MUSB_PERIPHERAL)
-	.mode           = MUSB_PERIPHERAL,
-#elif defined(CONFIG_USB_MUSB_HOST)
-	.mode           = MUSB_HOST,
+static void tnetv107x_dummy_set_vbus(struct musb *musb, int is_on)
+{
+	return;
+}
+static struct musb_hdrc_platform_data usb_data[] = {
+        {
+                .mode           = MUSB_PERIPHERAL,
+                .clock          = "usb",
+                .config         = &musb_config,
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+		.set_vbus	= tnetv107x_dummy_set_vbus,
 #endif
-	.clock		= "usb",
-	.config		= &musb_config,
+        },
+        {
+                .mode           = MUSB_HOST,
+                .clock          = "usb",
+                .config         = &musb_config,
+        },
 };
 
 static struct resource usb_resources[] = {
@@ -86,31 +94,44 @@ static struct resource usb_resources[] = {
 
 static u64 usb_dmamask = DMA_BIT_MASK(32);
 
-static struct platform_device usb_dev = {
-	.name           = "musb_hdrc",
-	.id             = -1,
-	.dev = {
-		.platform_data		= &usb_data,
-		.dma_mask		= &usb_dmamask,
-		.coherent_dma_mask      = DMA_BIT_MASK(32),
-	},
-	.resource       = usb_resources,
-	.num_resources  = ARRAY_SIZE(usb_resources),
+static struct platform_device usb_dev[] = {
+        {
+                .name           = "musb_hdrc",
+                .id             = -1,
+                .dev = {
+                        .platform_data          = &usb_data[0],
+                        .dma_mask               = &usb_dmamask,
+                        .coherent_dma_mask      = DMA_BIT_MASK(32),
+                },
+                .resource       = usb_resources,
+                .num_resources  = ARRAY_SIZE(usb_resources),
+        },
+        {
+                .name           = "musb_hdrc",
+                .id             = -1,
+                .dev = {
+                        .platform_data          = &usb_data[1],
+                        .dma_mask               = &usb_dmamask,
+                        .coherent_dma_mask      = DMA_BIT_MASK(32),
+                },
+                .resource       = usb_resources,
+                .num_resources  = ARRAY_SIZE(usb_resources),
+        }
 };
 
 void __init davinci_setup_usb(unsigned mA, unsigned potpgt_ms)
 {
-	usb_data.power = mA > 510 ? 255 : mA / 2;
-	usb_data.potpgt = (potpgt_ms + 1) / 2;
+	usb_data[0].power = mA > 510 ? 255 : mA / 2;
+	usb_data[0].potpgt = (potpgt_ms + 1) / 2;
 
 	if (cpu_is_davinci_dm646x()) {
 		/* Override the defaults as DM6467 uses different IRQs. */
-		usb_dev.resource[1].start = IRQ_DM646X_USBINT;
-		usb_dev.resource[2].start = IRQ_DM646X_USBDMAINT;
+		usb_dev[0].resource[1].start = IRQ_DM646X_USBINT;
+		usb_dev[0].resource[2].start = IRQ_DM646X_USBDMAINT;
 	} else	/* other devices don't have dedicated CPPI IRQ */
-		usb_dev.num_resources = 2;
+		usb_dev[0].num_resources = 2;
 
-	platform_device_register(&usb_dev);
+	platform_device_register(&usb_dev[0]);
 }
 
 #ifdef CONFIG_ARCH_DAVINCI_DA8XX
@@ -128,40 +149,70 @@ static struct resource da8xx_usb20_resources[] = {
 
 int __init da8xx_register_usb20(unsigned mA, unsigned potpgt)
 {
-	usb_data.clock  = "usb20";
-	usb_data.power	= mA > 510 ? 255 : mA / 2;
-	usb_data.potpgt = (potpgt + 1) / 2;
+	usb_data[0].clock  = "usb20";
+	usb_data[0].power	= mA > 510 ? 255 : mA / 2;
+	usb_data[0].potpgt = (potpgt + 1) / 2;
 
-	usb_dev.resource = da8xx_usb20_resources;
-	usb_dev.num_resources = ARRAY_SIZE(da8xx_usb20_resources);
+	usb_dev[0].resource = da8xx_usb20_resources;
+	usb_dev[0].num_resources = ARRAY_SIZE(da8xx_usb20_resources);
 
-	return platform_device_register(&usb_dev);
+	return platform_device_register(&usb_dev[0]);
 }
 #endif	/* CONFIG_DAVINCI_DA8XX */
 
 #ifdef CONFIG_ARCH_DAVINCI_TNETV107X
 
-static struct resource tnetv107x_usb20_resources[] = {
-	{
-		.start		= TNETV107X_USB1_BASE,
-		.end		= TNETV107X_USB1_BASE + SZ_2K - 1,
-		.flags		= IORESOURCE_MEM,
-	},
-	{
-		.start		= IRQ_TNETV107X_USB1,
-		.flags		= IORESOURCE_IRQ,
-	},
-
+static struct resource tnetv107x_usb20_resources[2][2] = {
+        {
+                {
+                        .start          = TNETV107X_USB0_BASE,
+                        .end            = TNETV107X_USB0_BASE + SZ_2K - 1,
+                        .flags          = IORESOURCE_MEM,
+                },
+                {
+                        .start          = IRQ_TNETV107X_USB0,
+                        .flags          = IORESOURCE_IRQ,
+                }
+        },
+        {
+                {
+                        .start          = TNETV107X_USB1_BASE,
+                        .end            = TNETV107X_USB1_BASE + SZ_2K - 1,
+                        .flags          = IORESOURCE_MEM,
+                },
+                {
+                        .start          = IRQ_TNETV107X_USB1,
+                        .flags          = IORESOURCE_IRQ,
+                }
+        }
 };
 
 int __init tnetv107x_register_usb20(void)
 {
-	usb_data.clock  = "clk_usb1";
-	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
-	usb_dev.resource = tnetv107x_usb20_resources;
-	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
-
-	return platform_device_register(&usb_dev);
+	int ret;
+#if defined(CONFIG_USB_MUSB_PERIPHERAL) || defined(CONFIG_USB_MUSB_OTG)
+        /* controller 0 */
+        usb_data[0].clock  = "clk_usb0";
+        usb_data[0].power       = 500 / 2;
+        usb_dev[0].id = 0; /* tnetv has 2xmusb controllers */
+        usb_dev[0].resource = tnetv107x_usb20_resources[0];
+        usb_dev[0].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[0]);
+        ret = platform_device_register(&usb_dev[0]);
+	if (ret < 0)
+		return ret;
+#endif
+#if defined(CONFIG_USB_MUSB_HOST) || defined(CONFIG_USB_MUSB_OTG)
+        /* controller 1 */
+        usb_data[1].clock  = "clk_usb1";
+        usb_data[1].power       = 500 / 2;
+        usb_dev[1].id = 1; /* tnetv has 2xmusb controllers */
+        usb_dev[1].resource = tnetv107x_usb20_resources[1];
+        usb_dev[1].num_resources = ARRAY_SIZE(tnetv107x_usb20_resources[1]);
+        ret = platform_device_register(&usb_dev[1]);
+	if (ret < 0)
+		return ret;
+#endif
+	return 0;
 }
 
 #endif	/* CONFIG_ARCH_DAVINCI_TNETV107X */

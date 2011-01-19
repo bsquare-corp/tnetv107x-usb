@@ -163,10 +163,10 @@ static inline int phy_ctrl(int controller, int turn_on)
 	unsigned long flags;
 
 	/*sanity check arguments */
-	if (turn_on != (0 || 1))
+	if (turn_on != 0 && turn_on != 1)
 	    return -EINVAL;
 
-	if (controller != (0 || 1))
+	if (controller != 0 && turn_on != 1)
 	    return -EINVAL;
 
 	phyreset = ioremap(USB_PHY_RESET, 4);
