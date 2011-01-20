@@ -339,10 +339,14 @@ static void txstate(struct musb *musb, struct musb_request *req)
 		struct dma_controller	*c = musb->dma_controller;
 		size_t request_size;
 
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+		/* CPPI41 doesn't use max_len */
+		request_size = request->length - request->actual;
+#else
 		/* setup DMA, then program endpoint CSR */
 		request_size = min_t(size_t, request->length - request->actual,
 					musb_ep->dma->max_len);
-
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 		use_dma = (request->dma != DMA_ADDR_INVALID);
 
 		/* MUSB_TXCSR_P_ISO is still set correctly */
