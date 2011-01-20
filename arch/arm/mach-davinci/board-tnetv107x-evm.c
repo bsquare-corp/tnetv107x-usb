@@ -362,11 +362,13 @@ static struct musb_hdrc_platform_data musb_config[] = {
 		.clock		= "clk_usb0",
 		.set_vbus	= tnetv107x_dummy_set_vbus,
 		.power		= 500 / 2,
+		.dma_channel_base = 0,
 	},
 	{
 		.mode		= MUSB_HOST,
 		.clock		= "clk_usb1",
 		.power		= 500 / 2,
+		.dma_channel_base = 15,
 	},
 };
 
