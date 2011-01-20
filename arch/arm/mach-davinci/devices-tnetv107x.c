@@ -12,6 +12,7 @@
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -21,12 +22,15 @@
 #include <linux/phy.h>
 
 #include <asm/pmu.h>
+#include <asm/hardware/cppi41.h>
 
 #include <mach/common.h>
 #include <mach/irqs.h>
 #include <mach/edma.h>
 #include <mach/tnetv107x.h>
 #include <mach/cpsw.h>
+
+
 
 #include "clock.h"
 
@@ -48,6 +52,8 @@
 #define TNETV107X_ASYNC_EMIF_DATA_CE1_BASE	0x40000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE2_BASE	0x44000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE3_BASE	0x48000000
+#define TNETV107X_USB1_BASE			0x08120800
+
 
 /* TNETV107X specific EDMA3 information */
 #define EDMA_TNETV107X_NUM_DMACH	64
@@ -476,6 +482,245 @@ static struct platform_device lcd_device = {
 	.num_resources		= ARRAY_SIZE(lcd_resources),
 	.resource		= lcd_resources,
 };
+
+
+#ifdef CONFIG_TI_CPPI41
+static const struct cppi41_tx_ch tx_ch_info[] = {
+        [0] = {
+                .port_num       = 1,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 32 }, { 0, 33 } }
+        },
+        [1] = {
+                .port_num       = 2,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 34 }, { 0, 35 } }
+        },
+        [2] = {
+                .port_num       = 3,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 36 }, { 0, 37 } }
+        },
+        [3] = {
+                .port_num       = 4,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 38 }, { 0, 39 } }
+        },
+        [4] = {
+                .port_num       = 5,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 40 }, { 0, 41 } }
+        },
+        [5] = {
+                .port_num       = 6,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 42 }, { 0, 43 } }
+        },
+        [6] = {
+                .port_num       = 7,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 44 }, { 0, 45 } }
+        },
+        [7] = {
+                .port_num       = 8,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 46 }, { 0, 47 } }
+        },
+        [8] = {
+                .port_num       = 9,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 48 }, { 0, 49 } }
+        },
+        [9] = {
+                .port_num       = 10,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 50 }, { 0, 51 } }
+        },
+        [10] = {
+                .port_num       = 11,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 52 }, { 0, 53 } }
+        },
+        [11] = {
+                .port_num       = 12,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 54 }, { 0, 55 } }
+        },
+        [12] = {
+                .port_num       = 13,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 56 }, { 0, 57 } }
+        },
+        [13] = {
+                .port_num       = 14,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 58 }, { 0, 59 } }
+        },
+        [14] = {
+                .port_num       = 15,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 60 }, { 0, 61 } }
+        },
+        [15] = {
+                .port_num       = 1,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 62 }, { 0, 63 } }
+        },
+        [16] = {
+                .port_num       = 2,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 64 }, { 0, 65 } }
+        },
+        [17] = {
+                .port_num       = 3,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 66 }, { 0, 67 } }
+        },
+        [18] = {
+                .port_num       = 4,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 68 }, { 0, 69 } }
+        },
+        [19] = {
+                .port_num       = 5,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 70 }, { 0, 71 } }
+        },
+        [20] = {
+                .port_num       = 6,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 72 }, { 0, 73 } }
+        },
+        [21] = {
+                .port_num       = 7,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 74 }, { 0, 75 } }
+        },
+        [22] = {
+                .port_num       = 8,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 76 }, { 0, 77 } }
+        },
+        [23] = {
+                .port_num       = 9,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 78 }, { 0, 79 } }
+        },
+        [24] = {
+                .port_num       = 10,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 80 }, { 0, 81 } }
+        },
+        [25] = {
+                .port_num       = 11,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 82 }, { 0, 83 } }
+        },
+        [26] = {
+                .port_num       = 12,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 84 }, { 0, 85 } }
+        },
+        [27] = {
+                .port_num       = 13,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 86 }, { 0, 87 } }
+        },
+        [28] = {
+                .port_num       = 14,
+                .num_tx_queue   = 2,
+                .tx_queue       = { { 0, 88 }, { 0, 89 } }
+        },
+};
+
+#define BASE 0x01e00000
+/* DMA block configuration */
+const struct cppi41_dma_block cppi41_dma_block[1] = {
+	[0] = {
+		.global_ctrl_base	= IO_ADDRESS(BASE + 0x21000),
+		.ch_ctrl_stat_base	= IO_ADDRESS(BASE + 0x21800),
+		.sched_ctrl_base	= IO_ADDRESS(BASE + 0x22000),
+		.sched_table_base	= IO_ADDRESS(BASE + 0x22800),
+		.num_tx_ch		= 31,
+		.num_rx_ch		= 31,
+		.tx_ch_info		= tx_ch_info
+	}
+
+};
+EXPORT_SYMBOL(cppi41_dma_block);
+
+/* Queues 0 to 27 are pre-assigned, others are spare */
+static const u32 assigned_queues[] = { 0xffffffff, 0xffffffff, 0x0fffffff, 0 };
+
+/* Queue manager information */
+const struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
+	[0] = {
+		.q_mgr_rgn_base 	= IO_ADDRESS(BASE + 0x24000),
+		.desc_mem_rgn_base	= IO_ADDRESS(BASE + 0x25000),
+		.q_mgmt_rgn_base	= IO_ADDRESS(BASE + 0x26000),
+		.q_stat_rgn_base	= IO_ADDRESS(BASE + 0x26400),
+
+		.num_queue		= 96,
+		.queue_types		= CPPI41_FREE_DESC_QUEUE | CPPI41_FREE_DESC_BUF_QUEUE |
+					  CPPI41_UNASSIGNED_QUEUE,
+		.base_fdbq_num		= 0,
+		.base_fdq_num		= 30,
+		.assigned		= assigned_queues
+	}
+
+};
+
+const u8 cppi41_num_queue_mgr = 1;
+const u8 cppi41_num_dma_block = 1;
+
+/* Fair DMA scheduling */
+static const u8 dma_sched_table[] = {
+	0x8f, 0x0f, 0x80, 0x00,
+	0x90, 0x10, 0x81, 0x01,
+	0x91, 0x11, 0x82, 0x02,
+	0x92, 0x12, 0x83, 0x03,
+	0x93, 0x13, 0x84, 0x04,
+	0x94, 0x14, 0x85, 0x05,
+	0x95, 0x15, 0x86, 0x06,
+	0x96, 0x16, 0x87, 0x07,
+	0x97, 0x17, 0x88, 0x08,
+	0x98, 0x18, 0x89, 0x09,
+	0x99, 0x19, 0x8a, 0x0a,
+	0x9a, 0x1a, 0x8b, 0x0b,
+	0x9b, 0x1b, 0x8c, 0x0c,
+	0x9c, 0x1c, 0x8d, 0x0d,
+	0x9d, 0x1d, 0x8e, 0x0e
+};
+
+int __init tnetv107x_cppi41_init(void)
+{
+	void *ptr;
+	int ret;
+	ret = cppi41_queue_mgr_init(0, NULL, 0);
+	if (ret) {
+		pr_warning("%s: queue manager initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_ctrlr_init(0, 0, 9);
+	if (ret) {
+		pr_warning("%s: DMA controller initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_sched_init(0, dma_sched_table,
+				    sizeof(dma_sched_table));
+	if (ret)
+		printk("%s: DMA scheduler initialization failed: %d\n",
+		       __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(tnetv107x_cppi41_init);
+
+#endif	/* CONFIG_CPPI41 */
+
 
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {

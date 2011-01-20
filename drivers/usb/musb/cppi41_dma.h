@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2005-2006 by Texas Instruments
- * Copyright (c) 2008, MontaVista Software, Inc. <source@mvista.com>
+ * Copyright (c) 2008, MontaVista Software, Inc. <source@xxxxxxxxxx>
  *
  * This program is free software; you can distribute it and/or modify it
  * under the terms of the GNU General Public License (Version 2) as
@@ -25,7 +25,6 @@
 #define USB_CTRL_REG		0x04
 #define USB_STAT_REG		0x08
 #define USB_EMULATION_REG	0x08
-#define USB_MODE_REG		0x10	/* Transparent, CDC, [Generic] RNDIS */
 #define USB_AUTOREQ_REG 	0x14
 #define USB_SRP_FIX_TIME_REG	0x18
 #define USB_TEARDOWN_REG 	0x1c
@@ -37,16 +36,31 @@
 #define USB_INTR_MASK_CLEAR_REG 0x34
 #define USB_INTR_SRC_MASKED_REG	0x38
 #define USB_END_OF_INTR_REG	0x3c
-#define USB_GENERIC_RNDIS_EP_SIZE_REG(n) (0x50 + (((n) - 1) << 2))
+#ifdef CONFIG_MACH_TNETV107X
+	#define USB_TX_MODE_REG		0x70	/* Transparent, CDC, [Generic] RNDIS */
+	#define USB_RX_MODE_REG		0x74	/* Transparent, CDC, [Generic] RNDIS */
+#else
+	#define USB_TX_MODE_REG		0x10	/* Transparent, CDC, [Generic] RNDIS */
+	#define USB_RX_MODE_REG		0x10	/* Transparent, CDC, [Generic] RNDIS */
+#endif
+
+#define USB_GENERIC_RNDIS_EP_SIZE_REG(n) (0x80 + (((n) - 1) << 2))
 
 /* Control register bits */
 #define USB_SOFT_RESET_MASK	1
 
 /* Mode register bits */
-#define USB_RX_MODE_SHIFT(n)	(16 + (((n) - 1) << 2))
+#ifdef CONFIG_MACH_TNETV107X
+	#define USB_RX_MODE_SHIFT(n)	((((n) - 1) << 1))
+	#define USB_TX_MODE_SHIFT(n)	((((n) - 1) << 1))
+#else
+	#define USB_RX_MODE_SHIFT(n)   (16 + (((n) - 1) << 2))
+	#define USB_TX_MODE_SHIFT(n)   ((((n) - 1) << 2))
+#endif
 #define USB_RX_MODE_MASK(n)	(3 << USB_RX_MODE_SHIFT(n))
-#define USB_TX_MODE_SHIFT(n)	((((n) - 1) << 2))
 #define USB_TX_MODE_MASK(n)	(3 << USB_TX_MODE_SHIFT(n))
+
+
 #define USB_TRANSPARENT_MODE	0
 #define USB_RNDIS_MODE		1
 #define USB_CDC_MODE		2
@@ -75,7 +89,11 @@
 
 #define USB_MENTOR_CORE_OFFSET	0x400
 
-#define USB_CPPI41_NUM_CH	4
+#ifdef CONFIG_MACH_TNETV107X
+	#define USB_CPPI41_NUM_CH	32
+#else
+	#define USB_CPPI41_NUM_CH 4
+#endif
 
 /**
  * struct usb_cppi41_info - CPPI 4.1 USB implementation details

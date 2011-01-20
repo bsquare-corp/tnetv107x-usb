@@ -595,7 +595,7 @@ static int alloc_queue(unsigned long *allocated, const unsigned long *excluded,
 		if (n >= end)
 			return -ENOSPC;
 		start = n + 1;
-	} while (test_bit(n, excluded) || test_and_set_bit(n, allocated));
+	} while ((excluded && test_bit(n, excluded)) || test_and_set_bit(n, allocated));
 
 	return n;
 }
@@ -757,3 +757,11 @@ int cppi41_get_teardown_info(unsigned long addr, u32 *info)
 	return 0;
 }
 EXPORT_SYMBOL(cppi41_get_teardown_info);
+
+u32 cppi41_get_pending(u8 q_mgr, u8 reg)
+{
+        return __raw_readl(cppi41_queue_mgr[q_mgr].q_mgr_rgn_base +
+                         QMGR_QUEUE_PENDING_REG(reg));
+}
+EXPORT_SYMBOL(cppi41_get_pending);
+

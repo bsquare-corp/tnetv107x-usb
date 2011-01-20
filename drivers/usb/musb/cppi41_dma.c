@@ -18,11 +18,14 @@
  * 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
  */
-
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
 
-#include <mach/cppi41.h>
+#include <asm/hardware/cppi41.h>
+
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+#include <mach/tnetv107x.h>
+#endif
 
 #include "musb_core.h"
 #include "musb_dma.h"
@@ -118,6 +121,8 @@ struct cppi41 {
 	struct cppi41_queue_obj queue_obj; /* Teardown completion queue */
 					/* object */
 	u32 pkt_info;			/* Tx PD Packet Information field */
+	spinlock_t lock;
+	u8 musbs;			/* Number of MUSB cores using this controller */
 };
 
 #ifdef DEBUG_CPPI_TD
@@ -125,6 +130,7 @@ static void print_pd_list(struct usb_pkt_desc *pd_pool_head)
 {
 	struct usb_pkt_desc *curr_pd = pd_pool_head;
 	int cnt = 0;
+	unsigned long flags;
 
 	while (curr_pd != NULL) {
 		if (cnt % 8 == 0)
@@ -170,6 +176,13 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	int i;
 
 	cppi = container_of(controller, struct cppi41, controller);
+	/* don't try to start the same controller more than once */
+	if (cppi->musbs++ > 0)
+		return 0;
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	tnetv107x_cppi41_init();
+#endif
+	cppi->lock = SPIN_LOCK_UNLOCKED;
 
 	/*
 	 * TODO: We may need to check USB_CPPI41_MAX_PD here since CPPI 4.1
@@ -277,7 +290,8 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
 
 	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
+	musb_writel(reg_base, USB_TX_MODE_REG, 0);
+	musb_writel(reg_base, USB_RX_MODE_REG, 0);
 
 	return 1;
 
@@ -310,6 +324,10 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 
 	cppi = container_of(controller, struct cppi41, controller);
 
+	/* don't actually stop the controller if there's still another MUSB core using it */
+	if (--cppi->musbs > 0)
+		return 0;
+
 	/* Free the teardown completion queue */
 	if (cppi41_queue_free(usb_cppi41_info.q_mgr, cppi->teardown_q_num))
 		DBG(1, "ERROR: failed to free teardown completion queue\n");
@@ -331,7 +349,8 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
 
 	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
+	musb_writel(reg_base, USB_TX_MODE_REG, 0);
+	musb_writel(reg_base, USB_RX_MODE_REG, 0);
 
 	return 1;
 }
@@ -352,19 +371,20 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 {
 	struct cppi41 *cppi;
 	struct cppi41_channel  *cppi_ch;
+	struct platform_device *pdev = to_platform_device(ep->musb->device);
 	u32 ch_num, ep_num = ep->epnum;
 
 	cppi = container_of(controller, struct cppi41, controller);
 
 	/* Remember, ep_num: 1 .. Max_EP, and CPPI ch_num: 0 .. Max_EP - 1 */
-	ch_num = ep_num - 1;
+	ch_num = (pdev->id*15) + ep_num - 1;
+
 
 	if (ep_num > USB_CPPI41_NUM_CH) {
 		DBG(1, "No %cx DMA channel for EP%d\n",
 		    is_tx ? 'T' : 'R', ep_num);
 		return NULL;
 	}
-
 	cppi_ch = (is_tx ? cppi->tx_cppi_ch : cppi->rx_cppi_ch) + ch_num;
 
 	/* As of now, just return the corresponding CPPI 4.1 channel handle */
@@ -476,10 +496,11 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 {
 	if (mode != cppi_ch->dma_mode) {
 		struct cppi41 *cppi = cppi_ch->channel.private_data;
-		void __iomem *reg_base = cppi->musb->ctrl_base;
-		u32 reg_val = musb_readl(reg_base, USB_MODE_REG);
-		u8 ep_num = cppi_ch->ch_num + 1;
-
+		void __iomem *reg_base = cppi_ch->end_pt->musb->ctrl_base;
+		unsigned long flags;
+		spin_lock_irqsave(&cppi->lock, flags);
+		u32 reg_val = musb_readl(reg_base, cppi_ch->transmit ? USB_TX_MODE_REG : USB_RX_MODE_REG);
+		u8 ep_num = cppi_ch->end_pt->epnum;
 		if (cppi_ch->transmit) {
 			reg_val &= ~USB_TX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_TX_MODE_SHIFT(ep_num);
@@ -487,8 +508,9 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 			reg_val &= ~USB_RX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_RX_MODE_SHIFT(ep_num);
 		}
-		musb_writel(reg_base, USB_MODE_REG, reg_val);
+		musb_writel(reg_base, cppi_ch->transmit ? USB_TX_MODE_REG : USB_RX_MODE_REG, reg_val);
 		cppi_ch->dma_mode = mode;
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
 }
 
@@ -526,7 +548,12 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 	 * transfer in one PD and one IRQ.  The only time we would NOT want
 	 * to use it is when the hardware constraints prevent it...
 	 */
-	if ((pkt_size & 0x3f) == 0 && length > pkt_size) {
+	if ((pkt_size & 0x3f) == 0 && length > pkt_size
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	     /* RNDIS in peripheral mode is broken on TNETV */
+	     && !is_peripheral_enabled(tx_ch->end_pt->musb)
+#endif
+	    ) {
 		num_pds  = 1;
 		pkt_size = length;
 		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);
@@ -592,26 +619,26 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 {
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 
-	if (is_host_active(cppi->musb) &&
+	if (is_host_active(rx_ch->end_pt->musb) &&
 	    autoreq != rx_ch->autoreq) {
-		void __iomem *reg_base = cppi->musb->ctrl_base;
+		void __iomem *reg_base = rx_ch->end_pt->musb->ctrl_base;
+		unsigned long flags;
+		spin_lock_irqsave(&cppi->lock, flags);
 		u32 reg_val = musb_readl(reg_base, USB_AUTOREQ_REG);
-		u8 ep_num = rx_ch->ch_num + 1;
-
+		u8 ep_num = rx_ch->end_pt->epnum;
 		reg_val &= ~USB_RX_AUTOREQ_MASK(ep_num);
 		reg_val |= autoreq << USB_RX_AUTOREQ_SHIFT(ep_num);
-
 		musb_writel(reg_base, USB_AUTOREQ_REG, reg_val);
 		rx_ch->autoreq = autoreq;
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
 }
 
 static void cppi41_set_ep_size(struct cppi41_channel *rx_ch, u32 pkt_size)
 {
 	struct cppi41 *cppi = rx_ch->channel.private_data;
-	void __iomem *reg_base = cppi->musb->ctrl_base;
-	u8 ep_num = rx_ch->ch_num + 1;
-
+	void __iomem *reg_base = rx_ch->end_pt->musb->ctrl_base;
+	u8 ep_num = rx_ch->end_pt->epnum;
 	musb_writel(reg_base, USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num), pkt_size);
 }
 
@@ -692,7 +719,12 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * Rx can use the generic RNDIS mode where we can probably fit this
 	 * transfer in one PD and one IRQ (or two with a short packet).
 	 */
-	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
+        if ((pkt_size & 0x3f) == 0 && length > pkt_size
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+             /* RNDIS in peripheral mode is broken on TNETV */
+             && !is_peripheral_enabled(rx_ch->end_pt->musb)
+#endif
+            ) {
 		cppi41_mode_update(rx_ch, USB_GENERIC_RNDIS_MODE);
 		cppi41_autoreq_update(rx_ch, USB_AUTOREQ_ALL_BUT_EOP);
 
@@ -712,23 +744,27 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	    rx_ch->curr_offset, rx_ch->length);
 
 	/* Get Rx packet descriptor from the free pool */
+	if (cppi == NULL)
+		return 0;
 	curr_pd = usb_get_free_pd(cppi);
 	if (curr_pd == NULL) {
 		/* Shouldn't ever happen! */
 		ERR("No Rx PDs\n");
 		return 0;
 	}
-
 	/*
 	 * HCD arranged ReqPkt for the first packet.
 	 * We arrange it for all but the last one.
 	 */
-	if (is_host_active(cppi->musb) && rx_ch->channel.actual_len) {
+	if (is_host_active(rx_ch->end_pt->musb) && rx_ch->channel.actual_len) {
 		void __iomem *epio = rx_ch->end_pt->regs;
+		unsigned long flags;
+		spin_lock_irqsave(&cppi->lock, flags);
 		u16 csr = musb_readw(epio, MUSB_RXCSR);
 
 		csr |= MUSB_RXCSR_H_REQPKT | MUSB_RXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_RXCSR, csr);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
 
 	if (length < pkt_size)
@@ -802,6 +838,7 @@ static int cppi41_channel_program(struct dma_channel *channel,	u16 maxpacket,
 	cppi_ch->length = length;
 	cppi_ch->transfer_mode = mode;
 	cppi_ch->zlp_queued = 0;
+	cppi_ch->channel.actual_len = 0; //from http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=5c905779477a366aed773ffc4f4979448140a96f -SP
 
 	/* Tx or Rx channel? */
 	if (cppi_ch->transmit)
@@ -854,9 +891,10 @@ static int usb_check_teardown(struct cppi41_channel *cppi_ch,
 static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
 {
 	struct cppi41 *cppi = tx_ch->channel.private_data;
-	void __iomem  *reg_base = cppi->musb->ctrl_base;
+	void __iomem  *reg_base = tx_ch->end_pt->musb->ctrl_base;
 	unsigned long pd_addr;
 	u32 td_reg;
+	unsigned long flags;
 
 	/* Initiate teardown for Tx DMA channel */
 	cppi41_dma_ch_teardown(&tx_ch->dma_ch_obj);
@@ -868,9 +906,11 @@ static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
 			 * Issue CPPI FIFO teardown -- without doing this here
 			 * the DMA channel teardown may never complete...
 			 */
+			spin_lock_irqsave(&cppi->lock, flags);
 			td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
-			td_reg |= USB_TX_TDOWN_MASK(tx_ch->ch_num + 1);
+			td_reg |= USB_TX_TDOWN_MASK(tx_ch->end_pt->epnum);
 			musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
+			spin_unlock_irqrestore(&cppi->lock, flags);
 
 			pd_addr = cppi41_queue_pop(&cppi->queue_obj);
 		} while (!pd_addr);
@@ -956,6 +996,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 	unsigned long pd_addr;
 	u32 csr, td_reg;
 	u8 ch_num, ep_num;
+	unsigned long flags;
 
 	cppi_ch = container_of(channel, struct cppi41_channel, channel);
 	ch_num = cppi_ch->ch_num;
@@ -976,12 +1017,11 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 	case MUSB_DMA_STATUS_FREE:
 		return 0;
 	}
-
 	cppi = cppi_ch->channel.private_data;
-	musb = cppi->musb;
+	musb = cppi_ch->end_pt->musb;
 	reg_base = musb->ctrl_base;
 	epio = cppi_ch->end_pt->regs;
-	ep_num = ch_num + 1;
+	ep_num = cppi_ch->end_pt->epnum;
 
 #ifdef DEBUG_CPPI_TD
 	printk("Before teardown:");
@@ -995,26 +1035,34 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		usb_tx_ch_teardown(cppi_ch);
 
 		/* Issue CPPI FIFO teardown for Tx channel */
+		spin_lock_irqsave(&cppi->lock, flags);
 		td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
 		td_reg |= USB_TX_TDOWN_MASK(ep_num);
 		musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 
 		/* Flush FIFO of the endpoint */
 		csr  = musb_readw(epio, MUSB_TXCSR);
 		csr |= MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_TXCSR, csr);
+		musb_writew(epio, MUSB_TXCSR, csr); //added by http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=bce257ccac7aa4e946f5c07ee37ba3b0fb596707 -SP
 	} else { /* Rx */
 		dprintk("Rx channel teardown, cppi_ch = %p\n", cppi_ch);
 
 		/* Flush FIFO of the endpoint */
+		spin_lock_irqsave(&cppi->lock, flags);
 		csr  = musb_readw(epio, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_RXCSR, csr);
+		musb_writew(epio, MUSB_RXCSR, csr); //added by http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=bce257ccac7aa4e946f5c07ee37ba3b0fb596707 -SP
+		spin_unlock_irqrestore(&cppi->lock, flags);
 
 		/* Issue CPPI FIFO teardown for Rx channel */
+		spin_lock_irqsave(&cppi->lock, flags);
 		td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
 		td_reg |= USB_RX_TDOWN_MASK(ep_num);
 		musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 
 		/* Tear down Rx DMA channel */
 		usb_rx_ch_teardown(cppi_ch);
@@ -1030,7 +1078,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		cppi41_autoreq_update(cppi_ch, USB_NO_AUTOREQ);
 
 		/* For host, clear (just) ReqPkt at end of current packet(s) */
-		if (is_host_active(cppi->musb))
+		if (is_host_active(cppi_ch->end_pt->musb))
 			csr &= ~MUSB_RXCSR_H_REQPKT;
 		csr |= MUSB_RXCSR_H_WZC_BITS;
 
@@ -1086,8 +1134,11 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 struct dma_controller * __init dma_controller_create(struct musb  *musb,
 						     void __iomem *mregs)
 {
-	struct cppi41 *cppi;
+	static struct cppi41 *cppi;
 
+	/* return the same cppi controller for multiple usb cores */
+	if (cppi)
+		return &cppi->controller;
 	cppi = kzalloc(sizeof *cppi, GFP_KERNEL);
 	if (!cppi)
 		return NULL;
@@ -1126,7 +1177,7 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 	if (cppi41_queue_init(&tx_queue_obj, usb_cppi41_info.q_mgr,
 			      usb_cppi41_info.tx_comp_q[index])) {
 		DBG(1, "ERROR: cppi41_queue_init failed for "
-		    "Tx completion queue");
+		    "Tx completion queue %d\n", usb_cppi41_info.tx_comp_q[index]);
 		return;
 	}
 
@@ -1161,9 +1212,18 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 			cppi41_next_tx_segment(tx_ch);
 		else if (tx_ch->channel.actual_len >= tx_ch->length) {
 			tx_ch->channel.status = MUSB_DMA_STATUS_FREE;
+                       /* from http://arago-project.org/git/people/?p=ajay/omap-usb-driver.git;a=commitdiff;h=757abbb2970661720a5faf117340fbae33435f6b -SP
+                        * We get Tx DMA completion interrupt even when
+                        * data is still in FIFO and not moved out to
+                        * USB bus. As we program the next request we
+                        * flush out and old data in FIFO which affects
+                        * USB functionality. So far, we have obsered
+                        * failure with iperf.
+                        */
 
+                        udelay(20);
 			/* Tx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 1);
+			musb_dma_completion(tx_ch->end_pt->musb, ep_num, 1);
 		}
 	}
 }
@@ -1175,7 +1235,7 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 
 	if (cppi41_queue_init(&rx_queue_obj, usb_cppi41_info.q_mgr,
 			      usb_cppi41_info.rx_comp_q[index])) {
-		DBG(1, "ERROR: cppi41_queue_init failed for Rx queue\n");
+		DBG(1, "ERROR: cppi41_queue_init failed for Rx queue %d\n", usb_cppi41_info.rx_comp_q[index]);
 		return;
 	}
 
@@ -1210,7 +1270,7 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 			rx_ch->channel.status = MUSB_DMA_STATUS_FREE;
 
 			/* Rx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 0);
+			musb_dma_completion(rx_ch->end_pt->musb, ep_num, 0);
 		} else
 			cppi41_next_rx_segment(rx_ch);
 	}
