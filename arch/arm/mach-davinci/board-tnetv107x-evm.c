@@ -353,15 +353,17 @@ static void tnetv107x_dummy_set_vbus(struct musb *musb, int is_on)
 
 static struct musb_hdrc_platform_data musb_config[] = {
 	{
-		.mode		= MUSB_PERIPHERAL,
-		.clock		= "clk_usb0",
-		.set_vbus	= tnetv107x_dummy_set_vbus,
-		.power		= 500 / 2,
+		.mode			= MUSB_PERIPHERAL,
+		.clock			= "clk_usb0",
+		.set_vbus		= tnetv107x_dummy_set_vbus,
+		.power			= 500 / 2,
+		.dma_channel_base	= 0,
 	},
 	{
-		.mode		= MUSB_HOST,
-		.clock		= "clk_usb1",
-		.power		= 500 / 2,
+		.mode			= MUSB_HOST,
+		.clock			= "clk_usb1",
+		.power			= 500 / 2,
+		.dma_channel_base	= 15,
 	},
 };
 

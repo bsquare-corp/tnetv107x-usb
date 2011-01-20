@@ -22,6 +22,7 @@
 #include <linux/usb/musb.h>
 
 #include <asm/pmu.h>
+#include <asm/hardware/cppi41.h>
 
 #include <mach/common.h>
 #include <mach/irqs.h>
@@ -558,7 +559,14 @@ int __init tnetv107x_register_usb20(
 {
 	int ret;
 	int i;
+#ifdef CONFIG_TI_CPPI41
+	struct clk *clk = clk_get(NULL, "clk_usb0");
 
+	clk_enable(clk);
+	tnetv107x_cppi41_init();
+	clk_disable(clk);
+	clk_put(clk);
+#endif
 	for (i = 0; i <= 1; i++) {
 		if (platform_data[i].mode != MUSB_UNDEFINED) {
 			platform_data[i].config = &musb_config;
@@ -570,6 +578,117 @@ int __init tnetv107x_register_usb20(
 	}
 	return 0;
 }
+
+#ifdef CONFIG_TI_CPPI41
+static struct cppi41_tx_ch tx_ch_info[32];
+
+/* DMA block configuration */
+struct cppi41_dma_block cppi41_dma_block[1] = {
+	[0] = {
+		.num_tx_ch		= 31,
+		.num_rx_ch		= 31,
+		.tx_ch_info		= tx_ch_info
+	}
+
+};
+EXPORT_SYMBOL(cppi41_dma_block);
+
+/* Queues 0 to 91 are pre-assigned, others are spare */
+static const u32 assigned_queues[] = { 0xffffffff, 0xffffffff, 0x0fffffff, 0 };
+
+/* Queue manager information */
+struct cppi41_queue_mgr cppi41_queue_mgr[1] = {
+	[0] = {
+		.num_queue		= 96,
+		.queue_types		= CPPI41_FREE_DESC_QUEUE |
+						CPPI41_FREE_DESC_BUF_QUEUE |
+						CPPI41_UNASSIGNED_QUEUE,
+		.base_fdbq_num		= 0,
+		.base_fdq_num		= 30,
+		.assigned		= assigned_queues
+	}
+
+};
+
+const u8 cppi41_num_queue_mgr = 1;
+const u8 cppi41_num_dma_block = 1;
+
+/* Fair DMA scheduling */
+static const u8 dma_sched_table[] = {
+	0x8f, 0x0f, 0x80, 0x00,
+	0x90, 0x10, 0x81, 0x01,
+	0x91, 0x11, 0x82, 0x02,
+	0x92, 0x12, 0x83, 0x03,
+	0x93, 0x13, 0x84, 0x04,
+	0x94, 0x14, 0x85, 0x05,
+	0x95, 0x15, 0x86, 0x06,
+	0x96, 0x16, 0x87, 0x07,
+	0x97, 0x17, 0x88, 0x08,
+	0x98, 0x18, 0x89, 0x09,
+	0x99, 0x19, 0x8a, 0x0a,
+	0x9a, 0x1a, 0x8b, 0x0b,
+	0x9b, 0x1b, 0x8c, 0x0c,
+	0x9c, 0x1c, 0x8d, 0x0d,
+	0x9d, 0x1d, 0x8e, 0x0e
+};
+
+
+int __init tnetv107x_cppi41_init(void)
+{
+	void *ptr;
+	int ret;
+	int i;
+
+	for (i = 0; i < 30; i++) {
+		tx_ch_info[i].port_num = (i % 15) + 1;
+		tx_ch_info[i].num_tx_queue = 2;
+		tx_ch_info[i].tx_queue[0].q_mgr = 0;
+		tx_ch_info[i].tx_queue[0].q_num = i * 2 + 32;
+		tx_ch_info[i].tx_queue[1].q_mgr = 0;
+		tx_ch_info[i].tx_queue[1].q_num = i * 2 + 33;
+	}
+
+	cppi41_dma_block[0].global_ctrl_base =
+			ioremap(TNETV107X_IO_BASE + 0x121000, 0x800);
+	cppi41_dma_block[0].ch_ctrl_stat_base =
+			ioremap(TNETV107X_IO_BASE + 0x121800, 0x800);
+	cppi41_dma_block[0].sched_ctrl_base =
+			ioremap(TNETV107X_IO_BASE + 0x122000, 0x800);
+	cppi41_dma_block[0].sched_table_base =
+			ioremap(TNETV107X_IO_BASE + 0x122800, 0x800);
+	cppi41_queue_mgr[0].q_mgr_rgn_base =
+			ioremap(TNETV107X_IO_BASE + 0x124000, 0x1000);
+	cppi41_queue_mgr[0].desc_mem_rgn_base =
+			ioremap(TNETV107X_IO_BASE + 0x125000, 0x1000);
+	cppi41_queue_mgr[0].q_mgmt_rgn_base =
+			ioremap(TNETV107X_IO_BASE + 0x126000, 0x400);
+	cppi41_queue_mgr[0].q_stat_rgn_base =
+			ioremap(TNETV107X_IO_BASE + 0x126400, 0x400);
+
+	ret = cppi41_queue_mgr_init(0, NULL, 0);
+	if (ret) {
+		pr_warning("%s: queue manager initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_ctrlr_init(0, 0, 9);
+	if (ret) {
+		pr_warning("%s: DMA controller initialization failed: %d\n",
+			   __func__, ret);
+		return ret;
+	}
+
+	ret = cppi41_dma_sched_init(0, dma_sched_table,
+				    sizeof(dma_sched_table));
+	if (ret)
+		pr_warning("%s: DMA scheduler initialization failed: %d\n",
+		       __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(tnetv107x_cppi41_init);
+
+#endif	/* CONFIG_CPPI41 */
 
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
