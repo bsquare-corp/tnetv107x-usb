@@ -36,6 +36,7 @@
 #include <linux/serial_8250.h>
 #include <linux/input/matrix_keypad.h>
 #include <linux/mfd/ti_ssp.h>
+#include <linux/usb/musb.h>
 
 #include <mach/mmc.h>
 #include <mach/nand.h>
@@ -69,7 +70,8 @@ struct tnetv107x_device_info {
 	struct tnetv107x_fb_data	*lcd_config;
 };
 
-int __init tnetv107x_register_usb20(void);
+int __init tnetv107x_register_usb20(
+		struct musb_hdrc_platform_data platform_data[]);
 
 extern struct platform_device tnetv107x_wdt_device;
 extern struct platform_device tnetv107x_serial_device;

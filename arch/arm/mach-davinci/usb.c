@@ -15,11 +15,8 @@
 
 #define DA8XX_USB0_BASE 	0x01e00000
 #define DA8XX_USB1_BASE 	0x01e25000
-#define TNETV107X_USB1_BASE	0x08120800
 
 #if defined(CONFIG_USB_MUSB_HDRC) || defined(CONFIG_USB_MUSB_HDRC_MODULE)
-
-#ifndef CONFIG_ARCH_DAVINCI_TNETV107X
 static struct musb_hdrc_eps_bits musb_eps[] = {
 	{ "ep1_tx", 8, },
 	{ "ep1_rx", 8, },
@@ -42,17 +39,6 @@ static struct musb_hdrc_config musb_config = {
 	.ram_bits	= 10,
 	.eps_bits	= musb_eps,
 };
-#else
-
-static struct musb_hdrc_config musb_config = {
-	.multipoint	= 1,
-	.dyn_fifo	= 1,
-	.dma		= 0,
-	.num_eps	= 16,
-	.ram_bits	= 12,
-};
-
-#endif
 
 static struct musb_hdrc_platform_data usb_data = {
 #if defined(CONFIG_USB_MUSB_OTG)
@@ -139,33 +125,6 @@ int __init da8xx_register_usb20(unsigned mA, unsigned potpgt)
 }
 #endif	/* CONFIG_DAVINCI_DA8XX */
 
-#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
-
-static struct resource tnetv107x_usb20_resources[] = {
-	{
-		.start		= TNETV107X_USB1_BASE,
-		.end		= TNETV107X_USB1_BASE + SZ_2K - 1,
-		.flags		= IORESOURCE_MEM,
-	},
-	{
-		.start		= IRQ_TNETV107X_USB1,
-		.flags		= IORESOURCE_IRQ,
-	},
-
-};
-
-int __init tnetv107x_register_usb20(void)
-{
-	usb_data.clock  = "clk_usb1";
-	usb_dev.id = 1; /* tnetv has 2xmusb controllers */
-	usb_dev.resource = tnetv107x_usb20_resources;
-	usb_dev.num_resources = ARRAY_SIZE(tnetv107x_usb20_resources);
-
-	return platform_device_register(&usb_dev);
-}
-
-#endif	/* CONFIG_ARCH_DAVINCI_TNETV107X */
-
 #else
 
 void __init davinci_setup_usb(unsigned mA, unsigned potpgt_ms)
@@ -174,13 +133,6 @@ void __init davinci_setup_usb(unsigned mA, unsigned potpgt_ms)
 
 #ifdef CONFIG_ARCH_DAVINCI_DA8XX
 int __init da8xx_register_usb20(unsigned mA, unsigned potpgt)
-{
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
-int __init tnetv107x_register_usb20()
 {
 	return 0;
 }

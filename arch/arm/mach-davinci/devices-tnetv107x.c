@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/phy.h>
+#include <linux/usb/musb.h>
 
 #include <asm/pmu.h>
 
@@ -27,6 +28,7 @@
 #include <mach/edma.h>
 #include <mach/tnetv107x.h>
 #include <mach/cpsw.h>
+#include <mach/usb.h>
 
 #include "clock.h"
 
@@ -48,6 +50,8 @@
 #define TNETV107X_ASYNC_EMIF_DATA_CE1_BASE	0x40000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE2_BASE	0x44000000
 #define TNETV107X_ASYNC_EMIF_DATA_CE3_BASE	0x48000000
+#define TNETV107X_USB0_BASE			0x08120000
+#define TNETV107X_USB1_BASE			0x08120800
 
 /* TNETV107X specific EDMA3 information */
 #define EDMA_TNETV107X_NUM_DMACH	64
@@ -476,6 +480,96 @@ static struct platform_device lcd_device = {
 	.num_resources		= ARRAY_SIZE(lcd_resources),
 	.resource		= lcd_resources,
 };
+
+static struct musb_hdrc_eps_bits musb_eps[] = {
+	{ "ep1_tx", 8, },
+	{ "ep1_rx", 8, },
+	{ "ep2_tx", 8, },
+	{ "ep2_rx", 8, },
+	{ "ep3_tx", 5, },
+	{ "ep3_rx", 5, },
+	{ "ep4_tx", 5, },
+	{ "ep4_rx", 5, },
+};
+
+static struct musb_hdrc_config musb_config = {
+	.multipoint	= true,
+	.dyn_fifo	= true,
+	.soft_con	= true,
+	.dma		= true,
+	.num_eps	= 16,
+	.dma_channels	= 8,
+	.ram_bits	= 12,
+	.eps_bits	= musb_eps,
+};
+
+static struct resource tnetv107x_usb20_resources[2][2] = {
+	{
+		{
+			.start	= TNETV107X_USB0_BASE,
+			.end	= TNETV107X_USB0_BASE + SZ_2K - 1,
+			.flags	= IORESOURCE_MEM,
+		},
+		{
+			.start	= IRQ_TNETV107X_USB0,
+			.flags	= IORESOURCE_IRQ,
+		}
+	},
+	{
+		{
+			.start	= TNETV107X_USB1_BASE,
+			.end	= TNETV107X_USB1_BASE + SZ_2K - 1,
+			.flags	= IORESOURCE_MEM,
+		},
+		{
+			.start	= IRQ_TNETV107X_USB1,
+			.flags	= IORESOURCE_IRQ,
+		}
+	}
+};
+
+static u64 usb_dmamask = DMA_BIT_MASK(32);
+
+static struct platform_device usb_dev[] = {
+	{
+		.name		= "musb_hdrc",
+		.id		= 0,
+		.dev = {
+			.dma_mask		= &usb_dmamask,
+			.coherent_dma_mask	= DMA_BIT_MASK(32),
+		},
+		.resource	= tnetv107x_usb20_resources[0],
+		.num_resources	= ARRAY_SIZE(tnetv107x_usb20_resources[0]),
+	},
+	{
+		.name		= "musb_hdrc",
+		.id		= 1,
+		.dev = {
+			.dma_mask		= &usb_dmamask,
+			.coherent_dma_mask	= DMA_BIT_MASK(32),
+		},
+		.resource	= tnetv107x_usb20_resources[1],
+		.num_resources	= ARRAY_SIZE(tnetv107x_usb20_resources[1]),
+	}
+};
+
+int __init tnetv107x_register_usb20(
+			struct musb_hdrc_platform_data platform_data[])
+{
+	int ret;
+	int i;
+
+	for (i = 0; i <= 1; i++) {
+		if (platform_data[i].mode != MUSB_UNDEFINED) {
+			platform_data[i].config = &musb_config;
+			usb_dev[i].dev.platform_data = &platform_data[i];
+			ret = platform_device_register(&usb_dev[i]);
+			if (ret < 0)
+				return ret;
+		}
+	}
+	return 0;
+}
 
 void __init tnetv107x_devices_init(struct tnetv107x_device_info *info)
 {
