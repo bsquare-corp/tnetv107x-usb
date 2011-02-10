@@ -164,7 +164,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 {
 	struct cppi41 *cppi;
 	struct cppi41_channel *cppi_ch;
-	void __iomem *reg_base;
 	struct usb_pkt_desc *curr_pd;
 	unsigned long pd_addr;
 	int i;
@@ -270,15 +269,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 			 (usb_cppi41_info.tx_comp_q[0] <<
 			  CPPI41_RETURN_QNUM_SHIFT);
 
-	/* Do necessary configuartion in hardware to get started */
-	reg_base = cppi->musb->ctrl_base;
-
-	/* Disable auto request mode */
-	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
-
-	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
-
 	return 1;
 
  free_queue:
@@ -306,7 +296,6 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 static int cppi41_controller_stop(struct dma_controller *controller)
 {
 	struct cppi41 *cppi;
-	void __iomem *reg_base;
 
 	cppi = container_of(controller, struct cppi41, controller);
 
@@ -324,14 +313,6 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	dma_free_coherent(cppi->musb->controller,
 			  USB_CPPI41_MAX_PD * USB_CPPI41_DESC_ALIGN,
 			  cppi->pd_mem, cppi->pd_mem_phys);
-
-	reg_base = cppi->musb->ctrl_base;
-
-	/* Disable auto request mode */
-	musb_writel(reg_base, USB_AUTOREQ_REG, 0);
-
-	/* Disable the CDC/RNDIS modes */
-	musb_writel(reg_base, USB_MODE_REG, 0);
 
 	return 1;
 }
