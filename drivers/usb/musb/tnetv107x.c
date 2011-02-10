@@ -36,9 +36,12 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 
+#include <asm/hardware/cppi41.h>
+
 #include <mach/tnetv107x.h>
 #include <mach/usb.h>
 #include "musb_core.h"
+#include "cppi41_dma.h"
 
 struct tnetv107x_musb_data {
 	struct  work_struct vbus_work;
@@ -494,6 +497,26 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 	return -EIO;
 }
 
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+irqreturn_t tnetv107x_cppi_interrupt(int irq, void *data)
+{
+	unsigned long flags;
+	struct musb *musb = data;
+	u32 pend2;
+
+	spin_lock_irqsave(&musb->lock, flags);
+	pend2 = cppi41_get_pending(0, 2);
+	if (pend2 & (0xf << 28)) {              /* queues 92 - 95 */
+		u32 rx = (pend2 >> 30) & 0x3;
+		u32 tx = (pend2 >> 28) & 0x3;
+		DBG(4, "CPPI 4.1 IRQ: Tx %x, Rx %x\n", tx, rx);
+		cppi41_completion(musb, rx, tx);
+	}
+	spin_unlock_irqrestore(&musb->lock, flags);
+	return IRQ_HANDLED;
+}
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
+
 int __init musb_platform_init(struct musb *musb, void *board_data)
 {
 	struct platform_device  *pdev;
@@ -509,6 +532,9 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 	musb->xceiv = otg_get_transceiver();
 	if (!musb->xceiv)
 		goto fail;
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+	request_irq(35, tnetv107x_cppi_interrupt, 0, "Leo_cppi41_cdma", musb);
+#endif /* CONFIG_USB_TI_CPPI41_DMA */
 
 	musb->mregs += MENTOR_CORE_OFFSET;
 
@@ -624,3 +650,38 @@ done:
 
 	return 0;
 }
+
+#ifdef CONFIG_USB_TI_CPPI41_DMA
+
+/*
+ * CPPI 4.1 resources used for USB OTG controller module:
+ *
+ * USB   DMA  DMA  QMgr  Tx     Src
+ *       Tx   Rx         QNum   Port
+ * ---------------------------------
+ * EP0   0    0    0     16,17  1
+ * ---------------------------------
+ * EP1   1    1    0     18,19  2
+ * ---------------------------------
+ * EP2   2    2    0     20,21  3
+ * ---------------------------------
+ * EP3   3    3    0     22,23  4
+ * ---------------------------------
+ */
+
+static const u16 tx_comp_q[] = { 92, 93 };
+static const u16 rx_comp_q[] = { 94, 95 };
+
+const struct usb_cppi41_info usb_cppi41_info = {
+	.dma_block	= 0,
+	.ep_dma_ch	= {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+				15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+				26, 27, 28, 29, 30},
+	.q_mgr		= 0,
+	.num_tx_comp_q	= 2,
+	.num_rx_comp_q	= 2,
+	.tx_comp_q	= tx_comp_q,
+	.rx_comp_q	= rx_comp_q
+};
+
+#endif /* CONFIG_USB_TI_CPPI41_DMA */

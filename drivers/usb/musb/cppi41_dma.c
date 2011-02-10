@@ -23,7 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 
-#include <mach/cppi41.h>
+#include <asm/hardware/cppi41.h>
 
 #include "musb_core.h"
 #include "musb_dma.h"
@@ -480,7 +480,12 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 		unsigned long flags;
 
 		spin_lock_irqsave(&cppi->lock, flags);
+#ifdef CONFIG_MACH_TNETV107X
+		reg_val = musb_readl(reg_base, cppi_ch->transmit ?
+				USB_TX_MODE_REG : USB_RX_MODE_REG);
+#else
 		reg_val = musb_readl(reg_base, USB_MODE_REG);
+#endif
 		if (cppi_ch->transmit) {
 			reg_val &= ~USB_TX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_TX_MODE_SHIFT(ep_num);
@@ -488,7 +493,12 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 			reg_val &= ~USB_RX_MODE_MASK(ep_num);
 			reg_val |= mode << USB_RX_MODE_SHIFT(ep_num);
 		}
+#ifdef CONFIG_MACH_TNETV107X
+		musb_writel(reg_base, cppi_ch->transmit ?
+				USB_TX_MODE_REG : USB_RX_MODE_REG, reg_val);
+#else
 		musb_writel(reg_base, USB_MODE_REG, reg_val);
+#endif
 		cppi_ch->dma_mode = mode;
 		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
@@ -528,7 +538,12 @@ static unsigned cppi41_next_tx_segment(struct cppi41_channel *tx_ch)
 	 * transfer in one PD and one IRQ.  The only time we would NOT want
 	 * to use it is when the hardware constraints prevent it...
 	 */
-	if ((pkt_size & 0x3f) == 0 && length > pkt_size) {
+	if ((pkt_size & 0x3f) == 0 && length > pkt_size
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	     /* RNDIS in peripheral mode is broken on TNETV */
+	     && !is_peripheral_enabled(tx_ch->end_pt->musb)
+#endif
+	    ) {
 		num_pds  = 1;
 		pkt_size = length;
 		cppi41_mode_update(tx_ch, USB_GENERIC_RNDIS_MODE);
@@ -697,7 +712,12 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * Rx can use the generic RNDIS mode where we can probably fit this
 	 * transfer in one PD and one IRQ (or two with a short packet).
 	 */
-	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size) {
+	if ((pkt_size & 0x3f) == 0 && length >= 2 * pkt_size
+#ifdef CONFIG_ARCH_DAVINCI_TNETV107X
+	     /* RNDIS in peripheral mode is broken on TNETV */
+	     && !is_peripheral_enabled(rx_ch->end_pt->musb)
+#endif
+	    ) {
 		cppi41_mode_update(rx_ch, USB_GENERIC_RNDIS_MODE);
 		cppi41_autoreq_update(rx_ch, USB_AUTOREQ_ALL_BUT_EOP);
 
@@ -717,6 +737,8 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	    rx_ch->curr_offset, rx_ch->length);
 
 	/* Get Rx packet descriptor from the free pool */
+	if (cppi == NULL)
+		return 0;
 	curr_pd = usb_get_free_pd(cppi);
 	if (curr_pd == NULL) {
 		/* Shouldn't ever happen! */
@@ -811,6 +833,8 @@ static int cppi41_channel_program(struct dma_channel *channel,	u16 maxpacket,
 	cppi_ch->length = length;
 	cppi_ch->transfer_mode = mode;
 	cppi_ch->zlp_queued = 0;
+	/* actual length has to be zero at the start of new dma programming */
+	cppi_ch->channel.actual_len = 0;
 
 	/* Tx or Rx channel? */
 	if (cppi_ch->transmit)
@@ -1018,6 +1042,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		csr  = musb_readw(epio, MUSB_TXCSR);
 		csr |= MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_TXCSR, csr);
+		musb_writew(epio, MUSB_TXCSR, csr);
 	} else { /* Rx */
 		dprintk("Rx channel teardown, cppi_ch = %p\n", cppi_ch);
 
@@ -1025,6 +1050,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		spin_lock_irqsave(&cppi->lock, flags);
 		csr  = musb_readw(epio, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_H_WZC_BITS;
+		musb_writew(epio, MUSB_RXCSR, csr);
 		musb_writew(epio, MUSB_RXCSR, csr);
 		spin_unlock_irqrestore(&cppi->lock, flags);
 
