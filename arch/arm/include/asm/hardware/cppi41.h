@@ -461,8 +461,8 @@ struct cppi41_dma_block {
 	const struct cppi41_tx_ch *tx_ch_info;
 };
 
-extern const struct cppi41_queue_mgr cppi41_queue_mgr[];
-extern const struct cppi41_dma_block cppi41_dma_block[];
+extern struct cppi41_queue_mgr cppi41_queue_mgr[];
+extern struct cppi41_dma_block cppi41_dma_block[];
 extern const u8 cppi41_num_queue_mgr;
 extern const u8 cppi41_num_dma_block;
 
