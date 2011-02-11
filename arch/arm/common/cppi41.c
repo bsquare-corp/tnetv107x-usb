@@ -596,7 +596,8 @@ static int alloc_queue(unsigned long *allocated, const unsigned long *excluded,
 		if (n >= end)
 			return -ENOSPC;
 		start = n + 1;
-	} while (test_bit(n, excluded) || test_and_set_bit(n, allocated));
+	} while ((excluded && test_bit(n, excluded)) ||
+			test_and_set_bit(n, allocated));
 
 	return n;
 }
