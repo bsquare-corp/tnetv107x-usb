@@ -121,20 +121,29 @@ void tnetvevm_deferred_drvvbus(struct work_struct *work)
 	container_of(work, struct tnetv107x_musb_data, vbus_work);
 	int is_on = tnetv_bdata->is_on;
 	int reg_status;
+	int check;
 
-	tnetv_bdata->vbus_state = regulator_is_enabled(tnetv_bdata->vbus_regulator);
-	reg_status = tnetv_bdata->vbus_state;
+	/* we can't rely on regulator_enabled to determine state, as this
+	doesn't take into consideration ref counting, and the PMIC
+	may have been disabled due to an overcurrent alarm */
 
-	if (reg_status && !is_on) {
+	if (!is_on && tnetv_bdata->vbus_state) {
 		regulator_disable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 0;
+
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if (check != 0)
+			WARNING("regulator disabled, but still on\n");
 	}
 
-	if (!reg_status && is_on) {
+	if (is_on && !tnetv_bdata->vbus_state) {
 		regulator_enable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 1;
-	}
 
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if (check != 1)
+			WARNING("regulator enabled, but still off\n");
+	}
 	return;
 }
 
