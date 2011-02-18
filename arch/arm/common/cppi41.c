@@ -185,6 +185,7 @@ int __init cppi41_dma_ctrlr_init(u8 dma_num, u8 q_mgr, u8 num_order)
 		td_addr += sizeof(*curr_td);
 	}
 
+	return 0;
 free_rgn:
 	cppi41_mem_rgn_free(q_mgr, dma_teardown[dma_num].mem_rgn);
 free_mem:
