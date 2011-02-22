@@ -1629,10 +1629,10 @@ irqreturn_t musb_interrupt(struct musb *musb)
 			/* REVISIT just retval = ep->rx_irq(...) */
 			retval = IRQ_HANDLED;
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_rx(musb, ep_num);
 			} else {
-				if (is_peripheral_capable())
+				if (is_peripheral_enabled(musb))
 					musb_g_rx(musb, ep_num);
 			}
 		}
@@ -1650,10 +1650,10 @@ irqreturn_t musb_interrupt(struct musb *musb)
 			/* REVISIT just retval |= ep->tx_irq(...) */
 			retval = IRQ_HANDLED;
 			if (devctl & MUSB_DEVCTL_HM) {
-				if (is_host_capable())
+				if (is_host_enabled(musb))
 					musb_host_tx(musb, ep_num);
 			} else {
-				if (is_peripheral_capable())
+				if (is_peripheral_enabled(musb))
 					musb_g_tx(musb, ep_num);
 			}
 		}
