@@ -120,6 +120,7 @@ struct cppi41 {
 	u32 pkt_info;			/* Tx PD Packet Information field */
 	atomic_t musbs;			/* Number of MUSB cores currently
 						using this dma controller */
+	spinlock_t lock;
 };
 
 #ifdef DEBUG_CPPI_TD
@@ -176,6 +177,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	if (atomic_add_return(1, &cppi->musbs) != 1)
 		return 1;
 
+	spin_lock_init(&cppi->lock);
 	/*
 	 * TODO: We may need to check USB_CPPI41_MAX_PD here since CPPI 4.1
 	 * requires the descriptor count to be a multiple of 2 ^ 5 (i.e. 32).
@@ -470,9 +472,12 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 {
 	if (mode != cppi_ch->dma_mode) {
 		struct cppi41 *cppi = cppi_ch->channel.private_data;
-		u32 reg_val = musb_readl(reg_base, USB_MODE_REG);
+		u32 reg_val;
 		void __iomem *reg_base = cppi_ch->end_pt->musb->ctrl_base;
 		u8 ep_num = cppi_ch->end_pt->epnum;
+		unsigned long flags;
+
+		spin_lock_irqsave(&cppi->lock, flags);
 
 #ifdef CONFIG_MACH_TNETV107X
 		reg_val = musb_readl(reg_base, cppi_ch->transmit ?
@@ -494,6 +499,7 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 		musb_writel(reg_base, USB_MODE_REG, reg_val);
 #endif
 		cppi_ch->dma_mode = mode;
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
 }
 
@@ -604,15 +610,20 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 
 	if (is_host_active(rx_ch->end_pt->musb) &&
 	    autoreq != rx_ch->autoreq) {
-		u32 reg_val = musb_readl(reg_base, USB_AUTOREQ_REG);
+		u32 reg_val;
 		void __iomem *reg_base = rx_ch->end_pt->musb->ctrl_base;
 		u8 ep_num = rx_ch->end_pt->epnum;
+		unsigned long flags;
 
+		spin_lock_irqsave(&cppi->lock, flags);
+		reg_val = musb_readl(reg_base, USB_AUTOREQ_REG);
 		reg_val &= ~USB_RX_AUTOREQ_MASK(ep_num);
 		reg_val |= autoreq << USB_RX_AUTOREQ_SHIFT(ep_num);
 
 		musb_writel(reg_base, USB_AUTOREQ_REG, reg_val);
 		rx_ch->autoreq = autoreq;
+		spin_unlock_irqrestore(&cppi->lock, flags);
+
 	}
 }
 
@@ -741,10 +752,14 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 */
 	if (is_host_active(rx_ch->end_pt->musb) && rx_ch->channel.actual_len) {
 		void __iomem *epio = rx_ch->end_pt->regs;
-		u16 csr = musb_readw(epio, MUSB_RXCSR);
+		u16 csr;
+		unsigned long flags;
 
+		spin_lock_irqsave(&cppi->lock, flags);
+		csr = musb_readw(epio, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_H_REQPKT | MUSB_RXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_RXCSR, csr);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	}
 
 	if (length < pkt_size)
@@ -875,6 +890,7 @@ static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
 	void __iomem  *reg_base = tx_ch->end_pt->musb->ctrl_base;
 	unsigned long pd_addr;
 	u32 td_reg;
+	unsigned long flags;
 
 	/* Initiate teardown for Tx DMA channel */
 	cppi41_dma_ch_teardown(&tx_ch->dma_ch_obj);
@@ -886,9 +902,11 @@ static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
 			 * Issue CPPI FIFO teardown -- without doing this here
 			 * the DMA channel teardown may never complete...
 			 */
+			spin_lock_irqsave(&cppi->lock, flags);
 			td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
 			td_reg |= USB_TX_TDOWN_MASK(tx_ch->ch_num + 1);
 			musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
+			spin_unlock_irqrestore(&cppi->lock, flags);
 
 			pd_addr = cppi41_queue_pop(&cppi->queue_obj);
 		} while (!pd_addr);
@@ -974,6 +992,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 	unsigned long pd_addr;
 	u32 csr, td_reg;
 	u8 ch_num, ep_num;
+	unsigned long flags;
 
 	cppi_ch = container_of(channel, struct cppi41_channel, channel);
 	ch_num = cppi_ch->ch_num;
@@ -1013,6 +1032,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		usb_tx_ch_teardown(cppi_ch);
 
 		/* Issue CPPI FIFO teardown for Tx channel */
+		spin_lock_irqsave(&cppi->lock, flags);
 		td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
 		td_reg |= USB_TX_TDOWN_MASK(ep_num);
 		musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
@@ -1022,10 +1042,12 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		csr |= MUSB_TXCSR_FLUSHFIFO | MUSB_TXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_TXCSR, csr);
 		musb_writew(epio, MUSB_TXCSR, csr);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 	} else { /* Rx */
 		dprintk("Rx channel teardown, cppi_ch = %p\n", cppi_ch);
 
 		/* Flush FIFO of the endpoint */
+		spin_lock_irqsave(&cppi->lock, flags);
 		csr  = musb_readw(epio, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_H_WZC_BITS;
 		musb_writew(epio, MUSB_RXCSR, csr);
@@ -1034,6 +1056,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		td_reg  = musb_readl(reg_base, USB_TEARDOWN_REG);
 		td_reg |= USB_RX_TDOWN_MASK(ep_num);
 		musb_writel(reg_base, USB_TEARDOWN_REG, td_reg);
+		spin_unlock_irqrestore(&cppi->lock, flags);
 
 		/* Tear down Rx DMA channel */
 		usb_rx_ch_teardown(cppi_ch);
