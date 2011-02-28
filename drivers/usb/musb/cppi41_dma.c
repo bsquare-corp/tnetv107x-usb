@@ -21,6 +21,7 @@
 
 #include <linux/errno.h>
 #include <linux/dma-mapping.h>
+#include <linux/platform_device.h>
 
 #include <mach/cppi41.h>
 
@@ -352,12 +353,14 @@ static struct dma_channel *cppi41_channel_alloc(struct dma_controller
 {
 	struct cppi41 *cppi;
 	struct cppi41_channel  *cppi_ch;
+	struct platform_device *pdev = to_platform_device(ep->musb->controller);
 	u32 ch_num, ep_num = ep->epnum;
+	struct musb_hdrc_platform_data *plat = pdev->dev.platform_data;
 
 	cppi = container_of(controller, struct cppi41, controller);
 
 	/* Remember, ep_num: 1 .. Max_EP, and CPPI ch_num: 0 .. Max_EP - 1 */
-	ch_num = ep_num - 1;
+	ch_num = plat->dma_channel_base + ep_num - 1;
 
 	if (ep_num > USB_CPPI41_NUM_CH) {
 		DBG(1, "No %cx DMA channel for EP%d\n",

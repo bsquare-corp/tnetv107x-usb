@@ -123,6 +123,9 @@ struct musb_hdrc_platform_data {
 	/* Turn device clock on or off */
 	int		(*set_clock)(struct clk *clock, int is_on);
 
+	/* first dma channel to use */
+	u8		dma_channel_base;
+
 	/* MUSB configuration-specific details */
 	struct musb_hdrc_config	*config;
 
