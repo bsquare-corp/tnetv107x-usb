@@ -119,6 +119,8 @@ struct cppi41 {
 	struct cppi41_queue_obj queue_obj; /* Teardown completion queue */
 					/* object */
 	u32 pkt_info;			/* Tx PD Packet Information field */
+	atomic_t musbs;			/* Number of MUSB cores currently
+						using this dma controller */
 };
 
 #ifdef DEBUG_CPPI_TD
@@ -170,6 +172,10 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	int i;
 
 	cppi = container_of(controller, struct cppi41, controller);
+
+	/* if already started, no need to start again */
+	if (atomic_add_return(1, &cppi->musbs) != 1)
+		return 1;
 
 	/*
 	 * TODO: We may need to check USB_CPPI41_MAX_PD here since CPPI 4.1
@@ -299,6 +305,11 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	struct cppi41 *cppi;
 
 	cppi = container_of(controller, struct cppi41, controller);
+
+	/* don't stop the controller unless no musb is using it */
+	atomic_dec(&cppi->musbs);
+	if (atomic_read(&cppi->musbs) != 0)
+		return 1;
 
 	/* Free the teardown completion queue */
 	if (cppi41_queue_free(usb_cppi41_info.q_mgr, cppi->teardown_q_num))
@@ -1096,7 +1107,11 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 struct dma_controller * __init dma_controller_create(struct musb  *musb,
 						     void __iomem *mregs)
 {
-	struct cppi41 *cppi;
+	static struct cppi41 *cppi;
+
+	/* return the same cppi controller for multiple usb cores */
+	if (cppi)
+		return &cppi->controller;
 
 	cppi = kzalloc(sizeof *cppi, GFP_KERNEL);
 	if (!cppi)
@@ -1110,6 +1125,7 @@ struct dma_controller * __init dma_controller_create(struct musb  *musb,
 	cppi->controller.channel_release = cppi41_channel_release;
 	cppi->controller.channel_program = cppi41_channel_program;
 	cppi->controller.channel_abort = cppi41_channel_abort;
+	atomic_set(&cppi->musbs, 0);
 
 	return &cppi->controller;
 }
@@ -1123,6 +1139,10 @@ void dma_controller_destroy(struct dma_controller *controller)
 	struct cppi41 *cppi;
 
 	cppi = container_of(controller, struct cppi41, controller);
+
+	/* don't destroy the controller unless no musb is using it */
+	if (atomic_read(&cppi->musbs) != 0)
+		return;
 
 	/* Free the CPPI object */
 	kfree(cppi);
