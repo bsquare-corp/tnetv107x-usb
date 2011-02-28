@@ -105,7 +105,6 @@ struct cppi41_channel {
  */
 struct cppi41 {
 	struct dma_controller controller;
-	struct musb *musb;
 
 	struct cppi41_channel tx_cppi_ch[USB_CPPI41_NUM_CH];
 	struct cppi41_channel rx_cppi_ch[USB_CPPI41_NUM_CH];
@@ -188,7 +187,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 	 * dma_alloc_coherent()  will return a page aligned address, so our
 	 * alignment requirement will be honored.
 	 */
-	cppi->pd_mem = dma_alloc_coherent(cppi->musb->controller,
+	cppi->pd_mem = dma_alloc_coherent(NULL,
 					  USB_CPPI41_MAX_PD *
 					  USB_CPPI41_DESC_ALIGN,
 					  &cppi->pd_mem_phys,
@@ -287,7 +286,7 @@ static int __init cppi41_controller_start(struct dma_controller *controller)
 		DBG(1, "ERROR: failed to free queue manager memory region\n");
 
  free_pds:
-	dma_free_coherent(cppi->musb->controller,
+	dma_free_coherent(NULL,
 			  USB_CPPI41_MAX_PD * USB_CPPI41_DESC_ALIGN,
 			  cppi->pd_mem, cppi->pd_mem_phys);
 
@@ -322,7 +321,7 @@ static int cppi41_controller_stop(struct dma_controller *controller)
 	if (cppi41_mem_rgn_free(usb_cppi41_info.q_mgr, cppi->pd_mem_rgn))
 		DBG(1, "ERROR: failed to free queue manager memory region\n");
 
-	dma_free_coherent(cppi->musb->controller,
+	dma_free_coherent(NULL,
 			  USB_CPPI41_MAX_PD * USB_CPPI41_DESC_ALIGN,
 			  cppi->pd_mem, cppi->pd_mem_phys);
 
@@ -471,9 +470,9 @@ static void cppi41_mode_update(struct cppi41_channel *cppi_ch, u8 mode)
 {
 	if (mode != cppi_ch->dma_mode) {
 		struct cppi41 *cppi = cppi_ch->channel.private_data;
-		void __iomem *reg_base = cppi->musb->ctrl_base;
 		u32 reg_val = musb_readl(reg_base, USB_MODE_REG);
-		u8 ep_num = cppi_ch->ch_num + 1;
+		void __iomem *reg_base = cppi_ch->end_pt->musb->ctrl_base;
+		u8 ep_num = cppi_ch->end_pt->epnum;
 
 #ifdef CONFIG_MACH_TNETV107X
 		reg_val = musb_readl(reg_base, cppi_ch->transmit ?
@@ -603,11 +602,11 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 {
 	struct cppi41 *cppi = rx_ch->channel.private_data;
 
-	if (is_host_active(cppi->musb) &&
+	if (is_host_active(rx_ch->end_pt->musb) &&
 	    autoreq != rx_ch->autoreq) {
-		void __iomem *reg_base = cppi->musb->ctrl_base;
 		u32 reg_val = musb_readl(reg_base, USB_AUTOREQ_REG);
-		u8 ep_num = rx_ch->ch_num + 1;
+		void __iomem *reg_base = rx_ch->end_pt->musb->ctrl_base;
+		u8 ep_num = rx_ch->end_pt->epnum;
 
 		reg_val &= ~USB_RX_AUTOREQ_MASK(ep_num);
 		reg_val |= autoreq << USB_RX_AUTOREQ_SHIFT(ep_num);
@@ -619,9 +618,8 @@ static void cppi41_autoreq_update(struct cppi41_channel *rx_ch, u8 autoreq)
 
 static void cppi41_set_ep_size(struct cppi41_channel *rx_ch, u32 pkt_size)
 {
-	struct cppi41 *cppi = rx_ch->channel.private_data;
-	void __iomem *reg_base = cppi->musb->ctrl_base;
-	u8 ep_num = rx_ch->ch_num + 1;
+	void __iomem *reg_base = rx_ch->end_pt->musb->ctrl_base;
+	u8 ep_num = rx_ch->end_pt->epnum;
 
 	musb_writel(reg_base, USB_GENERIC_RNDIS_EP_SIZE_REG(ep_num), pkt_size);
 }
@@ -741,7 +739,7 @@ static unsigned cppi41_next_rx_segment(struct cppi41_channel *rx_ch)
 	 * HCD arranged ReqPkt for the first packet.
 	 * We arrange it for all but the last one.
 	 */
-	if (is_host_active(cppi->musb) && rx_ch->channel.actual_len) {
+	if (is_host_active(rx_ch->end_pt->musb) && rx_ch->channel.actual_len) {
 		void __iomem *epio = rx_ch->end_pt->regs;
 		u16 csr = musb_readw(epio, MUSB_RXCSR);
 
@@ -874,7 +872,7 @@ static int usb_check_teardown(struct cppi41_channel *cppi_ch,
 static void usb_tx_ch_teardown(struct cppi41_channel *tx_ch)
 {
 	struct cppi41 *cppi = tx_ch->channel.private_data;
-	void __iomem  *reg_base = cppi->musb->ctrl_base;
+	void __iomem  *reg_base = tx_ch->end_pt->musb->ctrl_base;
 	unsigned long pd_addr;
 	u32 td_reg;
 
@@ -998,10 +996,10 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 	}
 
 	cppi = cppi_ch->channel.private_data;
-	musb = cppi->musb;
+	musb = cppi_ch->end_pt->musb;
 	reg_base = musb->ctrl_base;
 	epio = cppi_ch->end_pt->regs;
-	ep_num = ch_num + 1;
+	ep_num = cppi_ch->end_pt->epnum;
 
 #ifdef DEBUG_CPPI_TD
 	printk("Before teardown:");
@@ -1051,7 +1049,7 @@ static int cppi41_channel_abort(struct dma_channel *channel)
 		cppi41_autoreq_update(cppi_ch, USB_NO_AUTOREQ);
 
 		/* For host, clear (just) ReqPkt at end of current packet(s) */
-		if (is_host_active(cppi->musb))
+		if (is_host_active(cppi_ch->end_pt->musb))
 			csr &= ~MUSB_RXCSR_H_REQPKT;
 		csr |= MUSB_RXCSR_H_WZC_BITS;
 
@@ -1118,7 +1116,6 @@ struct dma_controller * __init dma_controller_create(struct musb  *musb,
 		return NULL;
 
 	/* Initialize the CPPI 4.1 DMA controller structure */
-	cppi->musb  = musb;
 	cppi->controller.start = cppi41_controller_start;
 	cppi->controller.stop  = cppi41_controller_stop;
 	cppi->controller.channel_alloc = cppi41_channel_alloc;
@@ -1193,7 +1190,7 @@ static void usb_process_tx_queue(struct cppi41 *cppi, unsigned index)
 			tx_ch->channel.status = MUSB_DMA_STATUS_FREE;
 
 			/* Tx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 1);
+			musb_dma_completion(tx_ch->end_pt->musb, ep_num, 1);
 		}
 	}
 }
@@ -1240,7 +1237,7 @@ static void usb_process_rx_queue(struct cppi41 *cppi, unsigned index)
 			rx_ch->channel.status = MUSB_DMA_STATUS_FREE;
 
 			/* Rx completion routine callback */
-			musb_dma_completion(cppi->musb, ep_num, 0);
+			musb_dma_completion(rx_ch->end_pt->musb, ep_num, 0);
 		} else
 			cppi41_next_rx_segment(rx_ch);
 	}
