@@ -34,6 +34,7 @@
 #include <linux/i2c/at24.h>
 #include <linux/i2c-gpio.h>
 #include <linux/ctype.h>
+#include <linux/usb/musb.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -42,6 +43,7 @@
 #include <mach/edma.h>
 #include <mach/mux.h>
 #include <mach/cp_intc.h>
+#include <mach/usb.h>
 #include <mach/tnetv107x.h>
 
 #define SSP_GPIO_START		128
@@ -344,6 +346,30 @@ static struct ti_ssp_data ssp_config = {
 	},
 };
 
+/*
+	One of the ports does not have a regulator associated with it.
+	Having set_vbus pointing to this dummy function prevents the musb
+	driver from attempting to enable/disable a non-existent regulator.
+*/
+static void tnetv107x_dummy_set_vbus(struct musb *musb, int is_on)
+{
+	return;
+}
+
+static struct musb_hdrc_platform_data musb_config[] = {
+	{
+		.mode		= MUSB_PERIPHERAL,
+		.clock		= "clk_usb0",
+		.set_vbus	= tnetv107x_dummy_set_vbus,
+		.power		= 500 / 2,
+	},
+	{
+		.mode		= MUSB_HOST,
+		.clock		= "clk_usb1",
+		.power		= 500 / 2,
+	},
+};
+
 static struct tnetv107x_device_info evm_device_info __initconst = {
 	.serial_config		= &serial_config,
 	.mmc_config[1]		= &mmc_config,	/* controller 1 */
@@ -513,6 +539,7 @@ static int __init tnetv107x_evm_late_init(void)
 {
 	platform_device_register(&backlight_device);
 	platform_device_register(&i2c_device);
+	tnetv107x_register_usb20(musb_config);
 	return 0;
 }
 late_initcall(tnetv107x_evm_late_init);
