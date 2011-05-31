@@ -120,21 +120,29 @@ void tnetvevm_deferred_drvvbus(struct work_struct *work)
 	struct tnetv107x_musb_data *tnetv_bdata =
 	container_of(work, struct tnetv107x_musb_data, vbus_work);
 	int is_on = tnetv_bdata->is_on;
-	int reg_status;
+	int check;
 
-	tnetv_bdata->vbus_state = regulator_is_enabled(tnetv_bdata->vbus_regulator);
-	reg_status = tnetv_bdata->vbus_state;
+	/* we can't rely on regulator_enabled to determine state, as this
+	doesn't take into consideration ref counting, and the PMIC
+	may have been disabled due to an overcurrent alarm */
 
-	if (reg_status && !is_on) {
+	if (!is_on && tnetv_bdata->vbus_state) {
 		regulator_disable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 0;
+
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if (check != 0)
+			WARNING("regulator disabled, but still on\n");
 	}
 
-	if (!reg_status && is_on) {
+	if (is_on && !tnetv_bdata->vbus_state) {
 		regulator_enable(tnetv_bdata->vbus_regulator);
 		tnetv_bdata->vbus_state = 1;
-	}
 
+		check = regulator_is_enabled(tnetv_bdata->vbus_regulator);
+		if (check != 1)
+			WARNING("regulator enabled, but still off\n");
+	}
 	return;
 }
 
@@ -444,7 +452,8 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 			musb->int_usb &= ~MUSB_INTR_VBUSERROR;
 			musb->xceiv->state = OTG_STATE_A_WAIT_VFALL;
 			mod_timer(&otg_workaround, jiffies + POLL_SECONDS * HZ);
-			WARNING("VBUS error workaround (delay coming)\n");
+			WARNING("VBUS error (USB%c) workaround (delay coming)\n",
+					((irq == IRQ_TNETV107X_USB0) ? '0' : '1'));
 		} else if (is_host_enabled(musb) && drvvbus) {
 			musb->is_active = 1;
 			MUSB_HST_MODE(musb);
@@ -460,7 +469,8 @@ static irqreturn_t tnetv107x_interrupt(int irq, void *hci)
 			portstate(musb->port1_status &= ~USB_PORT_STAT_POWER);
 		}
 
-		tnetv107xevm_set_vbus(musb, drvvbus);
+		if (musb->board_set_vbus)
+			musb->board_set_vbus(musb, drvvbus);
 
 		DBG(2, "VBUS %s (%s)%s, devctl %02x\n",
 				drvvbus ? "on" : "off",
@@ -563,13 +573,19 @@ int __init musb_platform_init(struct musb *musb, void *board_data)
 		pdata->board_data = ptnetv_musb_data;
 		/* get the regulator */
 		ptnetv_musb_data->vbus_regulator =
-			regulator_get(musb->controller, "vbus");
+			regulator_get_exclusive(musb->controller, "vbus");
 
 		ptnetv_musb_data->is_on = -1;
 
 		if (WARN(IS_ERR(ptnetv_musb_data->vbus_regulator)
-			 , "Unable to obtain voltage regulator for USB;"))
+			 , "Unable to obtain voltage regulator for USB%d;", pdev->id))
 			goto fail;
+
+		ptnetv_musb_data->vbus_state = regulator_is_enabled(ptnetv_musb_data->vbus_regulator);
+
+		regulator_set_current_limit(ptnetv_musb_data->vbus_regulator, 1000000, 1000000);
+		printk("VBUS regulator current limit is set to %duA.\n", 
+			regulator_get_current_limit(ptnetv_musb_data->vbus_regulator));
 
 		musb->board_set_vbus = tnetv107xevm_set_vbus;
 	}
