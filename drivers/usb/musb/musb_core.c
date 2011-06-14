@@ -1929,8 +1929,6 @@ static void musb_free(struct musb *musb)
 	}
 	if (is_dma_capable() && musb->dma_controller) {
 		struct dma_controller	*c = musb->dma_controller;
-
-		(void) c->stop(c);
 		dma_controller_destroy(c);
 	}
 
@@ -2252,9 +2250,17 @@ static int __exit musb_remove(struct platform_device *pdev)
 	 *  - OTG mode: both roles are deactivated (or never-activated)
 	 */
 	musb_exit_debugfs(musb);
-	musb_shutdown(pdev);
 
+	/* Stopping the controller should be performed prior to removing
+	   it's clocks or musb structure */
+        if (is_dma_capable() && musb->dma_controller) {
+                struct dma_controller   *c = musb->dma_controller;
+                (void) c->stop(c);
+        }
+
+	musb_shutdown(pdev);
 	musb_free(musb);
+
 	iounmap(ctrl_base);
 	device_init_wakeup(&pdev->dev, 0);
 #ifndef CONFIG_MUSB_PIO_ONLY
