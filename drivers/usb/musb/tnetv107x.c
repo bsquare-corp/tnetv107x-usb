@@ -320,6 +320,7 @@ static void otg_timer(unsigned long _musb)
 		}
 
 		musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
+		musb->vbuserr_retry = 0xFFFF;
 		musb_writel(musb->ctrl_base, CORE_INTR_SRC_SET_REG,
 			    MUSB_INTR_VBUSERROR << USB_INTR_USB_SHIFT);
 		break;
